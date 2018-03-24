@@ -29,9 +29,7 @@ __gshared {{
 /// and create an instance: vkEnumerateInstanceExtensionProperties, vkEnumerateInstanceLayerProperties, vkCreateInstance
 void loadGlobalLevelFunctions( PFN_vkGetInstanceProcAddr getInstanceProcAddr ) {{
 {IND}vkGetInstanceProcAddr                  = getInstanceProcAddr;
-{IND}vkEnumerateInstanceExtensionProperties = cast( PFN_vkEnumerateInstanceExtensionProperties ) vkGetInstanceProcAddr( null, "vkEnumerateInstanceExtensionProperties" );
-{IND}vkEnumerateInstanceLayerProperties     = cast( PFN_vkEnumerateInstanceLayerProperties     ) vkGetInstanceProcAddr( null, "vkEnumerateInstanceLayerProperties" );
-{IND}vkCreateInstance                       = cast( PFN_vkCreateInstance                       ) vkGetInstanceProcAddr( null, "vkCreateInstance" );
+{GLOBAL_LEVEL_FUNCS}
 }}
 
 

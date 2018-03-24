@@ -100,6 +100,7 @@ class DGenerator( OutputGenerator ):
         self.platform_extension_order = []
         self.platform_protection_order = []
         self.platform_extension_protection = dict()
+        self.platform_name_protection = dict()
 
 
     # start processing
@@ -113,8 +114,16 @@ class DGenerator( OutputGenerator ):
 
 
         # open test file here, we might circumvent tests_file_content and write directly to the file
-        #self.tests_file_content = ''
-        #self.tests_file = open( 'test.txt', 'w', encoding = 'utf-8' )
+        self.tests_file_content = ''
+        self.tests_file = open( 'test.txt', 'w', encoding = 'utf-8' )
+
+
+        # since v1.1.70 we only get platform names per feature, but not their protect string
+        # these are stored in vk.xml in platform tags, we extract them and map
+        # pltform name to platform protection
+        for platform in self.registry.tree.findall('platforms/platform'):
+            self.platform_name_protection[ platform.get( 'name' ) ] = platform.get( 'protect' )
+
 
 
     # end processing, store data to files
@@ -138,6 +147,10 @@ class DGenerator( OutputGenerator ):
                 lj = self.max_func_name_len - value[ 'Func_Name_Lengths' ][ i ]
                 value[ 'Func_Type_Aliases' ][ i ] = value[ 'Func_Type_Aliases' ][ i ].format( LJUST_NAME = lj * ' ' )
                 value[ 'Func_Declarations' ][ i ] = value[ 'Func_Declarations' ][ i ].format( LJUST_NAME = lj * ' ' )
+
+            for i in range( len( value[ 'Global_Funcs' ] )):
+                lj = 10 #self.max_func_name_len - value[ 'I_Func_Name_Lengths' ][ i ]
+                value[ 'Global_Funcs' ][ i ] = value[ 'Global_Funcs' ][ i ].format( LJUST_NAME = lj * ' ' )
 
             for i in range( len( value[ 'I_Func_Name_Lengths' ] )):
                 lj = self.max_i_func_name_len - value[ 'I_Func_Name_Lengths' ][ i ]
@@ -209,6 +222,7 @@ class DGenerator( OutputGenerator ):
             PACKAGE_PREFIX              = self.genOpts.packagePrefix,
             FUNC_TYPE_ALIASES           = functionSection( 'Func_Type_Aliases', self.indent ),
             FUNC_DECLARATIONS           = functionSection( 'Func_Declarations', self.indent ),
+            GLOBAL_LEVEL_FUNCS          = functionSection( 'Global_Funcs'     , self.indent ),
             INSTANCE_LEVEL_FUNCS        = functionSection( 'Instance_Funcs'   , self.indent ),
             DEVICE_I_LEVEL_FUNCS        = functionSection( 'Device_Funcs'     , self.indent,     'Instance' ),
             DEVICE_D_LEVEL_FUNCS        = functionSection( 'Device_Funcs'     , self.indent,     'Device'   ),
@@ -331,8 +345,8 @@ class DGenerator( OutputGenerator ):
 
 
         # write and close remaining tests data into tests.txt file
-        #write( self.tests_file_content, file = self.tests_file )
-        #self.tests_file.close()
+        write( self.tests_file_content, file = self.tests_file )
+        self.tests_file.close()
 
 
 
@@ -347,7 +361,9 @@ class DGenerator( OutputGenerator ):
 
         self.currentFeature = interface.get( 'name' )
 
-        protection = interface.get( 'protect' )
+        platform = interface.get( 'platform' )
+        protection = self.platform_name_protection.get( platform, None )
+
         if protection:
 
             # some features are protected with the same protection, we want them only once in list
@@ -371,6 +387,7 @@ class DGenerator( OutputGenerator ):
             'Type_Definitions' : [],
             'Func_Type_Aliases' : [],
             'Func_Declarations' : [],
+            'Global_Funcs' : [],
             'Instance_Funcs' : [],
             'Device_Funcs' : [],
             'Convenience_Funcs' : [],
@@ -384,9 +401,11 @@ class DGenerator( OutputGenerator ):
 
     # end pasing of all types and functions of a certain feature / extension
     def endFeature( self ):
-
         # exit this function if content is not supposed to be emitted
         if not self.emit: return
+
+
+
 
         #self.tests_file_content += self.currentFeature + '\n'
         #TYPE_SECTIONS = [
@@ -420,14 +439,15 @@ class DGenerator( OutputGenerator ):
 
 
 
-    def genType( self, typeinfo, name ):
-        super().genType( typeinfo, name )
+    def genType( self, typeinfo, name, alias ):
+        super().genType( typeinfo, name, alias )
         if 'requires' in typeinfo.elem.attrib:
             required = typeinfo.elem.attrib[ 'requires' ]
             if required.endswith( '.h' ):
                 return
             elif required == 'vk_platform':
                 return
+
 
         if 'category' not in typeinfo.elem.attrib:
             #for k, v in typeinfo.elem.attrib.items():
@@ -464,7 +484,7 @@ class DGenerator( OutputGenerator ):
 
         # structs and unions
         elif category == 'struct' or category == 'union':
-            self.genStruct( typeinfo, name )
+            self.genStruct( typeinfo, name, alias )
 
         # extract header version: enum VK_HEADER_VERSION = 69;
         elif category == 'define' and name == 'VK_HEADER_VERSION':
@@ -476,8 +496,8 @@ class DGenerator( OutputGenerator ):
 
 
     # strucs and unions
-    def genStruct( self, typeinfo, name ):
-        super().genStruct( typeinfo, name )
+    def genStruct( self, typeinfo, name, alias ):
+        super().genStruct( typeinfo, name, alias )
         category = typeinfo.elem.attrib[ 'category' ]
 
         if self.sections[ 'struct' ]:
@@ -509,8 +529,8 @@ class DGenerator( OutputGenerator ):
 
 
     # named and global enums and enum flag bits
-    def genGroup( self, group_info, group_name ):
-        super().genGroup( group_info, group_name )
+    def genGroup( self, group_info, group_name, alias ):
+        super().genGroup( group_info, group_name, alias )
 
         group_elem = group_info.elem
 
@@ -595,8 +615,8 @@ class DGenerator( OutputGenerator ):
 
 
     # enum VK_TRUE = 1; enum VK_FALSE = 0; enum _SPEC_VERSION = ; enum _EXTENSION_NAME = ;
-    def genEnum( self, enuminfo, name ):
-        super().genEnum( enuminfo, name )
+    def genEnum( self, enuminfo, name, alias ):
+        super().genEnum( enuminfo, name, alias )
         _,enum_str = self.enumToValue( enuminfo.elem, False )
         if enum_str == 'VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT':
             enum_str = 'VkStructureType.' + enum_str
@@ -609,8 +629,8 @@ class DGenerator( OutputGenerator ):
 
 
     # functions
-    def genCmd( self, cmdinfo, name ):
-        super().genCmd( cmdinfo, name )
+    def genCmd( self, cmdinfo, name, alias ):
+        super().genCmd( cmdinfo, name, alias )
         proto = cmdinfo.elem.find( 'proto' )
         return_type = getFullType( proto ).strip()
 
@@ -629,6 +649,15 @@ class DGenerator( OutputGenerator ):
         self.feature_content[ self.currentFeature ][ 'Func_Type_Aliases' ].append( func_type_name )
         self.feature_content[ self.currentFeature ][ 'Func_Declarations' ].append( 'PFN_{0}{{LJUST_NAME}} {0};'.format( name ))
         self.feature_content[ self.currentFeature ][ 'Func_Name_Lengths' ].append( len( name ))
+
+
+        # construct global level functions, which are used to parametrize and create a VkInstance
+        if getFullType( params[ 0 ] ) not in { 'VkInstance', 'VkPhysicalDevice', 'VkDevice', 'VkQueue', 'VkCommandBuffer' }:
+            self.feature_content[ self.currentFeature ][ 'Global_Funcs' ].append(
+                '{0}{{LJUST_NAME}} = cast( PFN_{0}{{LJUST_NAME}} ) vkGetInstanceProcAddr( instance, "{0}" );'.format( name ))
+
+            self.tests_file_content += \
+                '{0} = cast( PFN_{0} ) vkGetInstanceProcAddr( instance, "{0}" );'.format( name.ljust( 38 ) ) + '\n'
 
         # construct loader for device and instance based device level functions as well as dispatch device convenience functions
         if name != 'vkGetDeviceProcAddr' and getFullType( params[ 0 ] ) in { 'VkDevice', 'VkQueue', 'VkCommandBuffer' }:
@@ -693,7 +722,8 @@ if __name__ == '__main__':
 
     gen = DGenerator()
     reg = Registry()
-    reg.loadElementTree( etree.parse( vkxml ))
+#   reg.loadElementTree( etree.parse( vkxml ))
+    reg.loadFile( vkxml )
     reg.setGenerator( gen )
     reg.apiGen(
         DGeneratorOptions(
