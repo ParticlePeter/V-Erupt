@@ -91,6 +91,7 @@ class DGenerator( OutputGenerator ):
         self.header_version = ''
 
         self.max_func_name_len = 0
+        self.max_g_func_name_len = 0
         self.max_i_func_name_len = 0
         self.max_d_func_name_len = 0
 
@@ -142,24 +143,28 @@ class DGenerator( OutputGenerator ):
         # ----------------- #
 
         # loop through all functions of all features and align their names
+        # in the outer loop are tree categories, each category has a different per feature count of functions items
+        # we store the function name length in only one function item, it can be reused with the other items in the same category
+        # the items which store the name length are tuples of ( func item string, func name length )
+        # the others are simply func item strings
         for value in self.feature_content.values():
-            for i in range( len( value[ 'Func_Name_Lengths' ] )):
-                lj = self.max_func_name_len - value[ 'Func_Name_Lengths' ][ i ]
-                value[ 'Func_Type_Aliases' ][ i ] = value[ 'Func_Type_Aliases' ][ i ].format( LJUST_NAME = lj * ' ' )
+            for i in range( len( value[ 'Func_Type_Aliases' ] )):
+                lj = self.max_func_name_len       - value[ 'Func_Type_Aliases' ][ i ][ 1 ]
+                value[ 'Func_Type_Aliases' ][ i ] = value[ 'Func_Type_Aliases' ][ i ][ 0 ].format( LJUST_NAME = lj * ' ' )
                 value[ 'Func_Declarations' ][ i ] = value[ 'Func_Declarations' ][ i ].format( LJUST_NAME = lj * ' ' )
 
             for i in range( len( value[ 'Global_Funcs' ] )):
-                lj = 10 #self.max_func_name_len - value[ 'I_Func_Name_Lengths' ][ i ]
-                value[ 'Global_Funcs' ][ i ] = value[ 'Global_Funcs' ][ i ].format( LJUST_NAME = lj * ' ' )
+                lj = self.max_g_func_name_len - value[ 'Global_Funcs' ][ i ][ 1 ]
+                value[ 'Global_Funcs' ][ i ]  = value[ 'Global_Funcs' ][ i ][ 0 ].format( LJUST_NAME = lj * ' ' )
 
-            for i in range( len( value[ 'I_Func_Name_Lengths' ] )):
-                lj = self.max_i_func_name_len - value[ 'I_Func_Name_Lengths' ][ i ]
-                value[ 'Instance_Funcs' ][ i ] = value[ 'Instance_Funcs' ][ i ].format( LJUST_NAME = lj * ' ' )
+            for i in range( len( value[ 'Instance_Funcs' ] )):
+                lj = self.max_i_func_name_len  - value[ 'Instance_Funcs' ][ i ][ 1 ]
+                value[ 'Instance_Funcs' ][ i ] = value[ 'Instance_Funcs' ][ i ][ 0 ].format( LJUST_NAME = lj * ' ' )
 
-            for i in range( len( value[ 'D_Func_Name_Lengths' ] )):
-                lj = self.max_d_func_name_len - value[ 'D_Func_Name_Lengths' ][ i ]
-                value[ 'Device_Funcs'      ][ i ]  = value[ 'Device_Funcs'      ][ i ].format( LJUST_NAME = lj * ' ' )
-                value[ 'Disp_Declarations' ][ i ]  = value[ 'Disp_Declarations' ][ i ].format( LJUST_NAME = lj * ' ' )
+            for i in range( len( value[ 'Device_Funcs' ] )):
+                lj = self.max_d_func_name_len     - value[ 'Device_Funcs' ][ i ][ 1 ]
+                value[ 'Device_Funcs'      ][ i ] = value[ 'Device_Funcs' ][ i ][ 0 ].format( LJUST_NAME = lj * ' ' )
+                value[ 'Disp_Declarations' ][ i ] = value[ 'Disp_Declarations' ][ i ].format( LJUST_NAME = lj * ' ' )
 
 
 
@@ -355,7 +360,7 @@ class DGenerator( OutputGenerator ):
     ALL_SECTIONS = TYPE_SECTIONS + [ 'command' ]
 
 
-    # begin pasing of all types and functions of a certain feature / extension
+    # begin parsing of all types and functions of a certain feature / extension
     def beginFeature( self, interface, emit ):
         OutputGenerator.beginFeature( self, interface, emit )
 
@@ -391,9 +396,6 @@ class DGenerator( OutputGenerator ):
             'Instance_Funcs' : [],
             'Device_Funcs' : [],
             'Convenience_Funcs' : [],
-            'Func_Name_Lengths' : [],
-            'I_Func_Name_Lengths' : [],
-            'D_Func_Name_Lengths' : [],
             'Disp_Declarations' : [],
         }
         self.sections = dict( [ ( section, [] ) for section in self.ALL_SECTIONS ] )
@@ -634,38 +636,36 @@ class DGenerator( OutputGenerator ):
         proto = cmdinfo.elem.find( 'proto' )
         return_type = getFullType( proto ).strip()
 
-        # modify the return type to align functions for better readability and keepp track of the maximum function name length
+        # modify the return type to align functions for better readability and keep track of the maximum function name length
         do_return = ''
         if return_type == 'void':   return_type = 'void    '
         else:                       do_return = 'return '
-        self.max_func_name_len = max( self.max_func_name_len, len( name ))
+        name_len = len( name )
+        self.max_func_name_len = max( self.max_func_name_len, name_len )
 
         # a parameter consist of a type and a name, here we merge all parameters into a list
         params = cmdinfo.elem.findall( 'param' )
         joined_params  = ', '.join( getFullType( param ).strip() + ' ' + param.find( 'name' ).text for param in params )
 
         # construct function pointer prototypes, declarations and keep track of each function name length for aligning purpose
+        # some of the function items are stored as tuple of ( func item string, func name length ), we use the latter for alignment
+        # the other function items are store as func item string, their alignment parameter is the same as of their tuple predecessors
         func_type_name = 'alias PFN_{0}{{LJUST_NAME}} = {1}  function( {2} );'.format( name, return_type, joined_params )
-        self.feature_content[ self.currentFeature ][ 'Func_Type_Aliases' ].append( func_type_name )
+        self.feature_content[ self.currentFeature ][ 'Func_Type_Aliases' ].append( ( func_type_name, name_len ))
         self.feature_content[ self.currentFeature ][ 'Func_Declarations' ].append( 'PFN_{0}{{LJUST_NAME}} {0};'.format( name ))
-        self.feature_content[ self.currentFeature ][ 'Func_Name_Lengths' ].append( len( name ))
-
 
         # construct global level functions, which are used to parametrize and create a VkInstance
         if getFullType( params[ 0 ] ) not in { 'VkInstance', 'VkPhysicalDevice', 'VkDevice', 'VkQueue', 'VkCommandBuffer' }:
             self.feature_content[ self.currentFeature ][ 'Global_Funcs' ].append(
-                '{0}{{LJUST_NAME}} = cast( PFN_{0}{{LJUST_NAME}} ) vkGetInstanceProcAddr( instance, "{0}" );'.format( name ))
-
-            self.tests_file_content += \
-                '{0} = cast( PFN_{0} ) vkGetInstanceProcAddr( instance, "{0}" );'.format( name.ljust( 38 ) ) + '\n'
+                ( '{0}{{LJUST_NAME}} = cast( PFN_{0}{{LJUST_NAME}} ) vkGetInstanceProcAddr( instance, "{0}" );'.format( name ), name_len ))
+            self.max_g_func_name_len = max( self.max_g_func_name_len, name_len )
 
         # construct loader for device and instance based device level functions as well as dispatch device convenience functions
         if name != 'vkGetDeviceProcAddr' and getFullType( params[ 0 ] ) in { 'VkDevice', 'VkQueue', 'VkCommandBuffer' }:
             self.feature_content[ self.currentFeature ][ 'Device_Funcs' ].append(
-                '{0}{{LJUST_NAME}} = cast( PFN_{0}{{LJUST_NAME}} ) vkGet{{{{INSTANCE_OR_DEVICE}}}}ProcAddr( {{{{instance_or_device}}}}, "{0}" );'.format( name ))
+                ( '{0}{{LJUST_NAME}} = cast( PFN_{0}{{LJUST_NAME}} ) vkGet{{{{INSTANCE_OR_DEVICE}}}}ProcAddr( {{{{instance_or_device}}}}, "{0}" );'.format( name ), name_len ))
             self.feature_content[ self.currentFeature ][ 'Disp_Declarations'   ].append( 'PFN_{0}{{LJUST_NAME}} {0};'.format( name ))
-            self.feature_content[ self.currentFeature ][ 'D_Func_Name_Lengths' ].append( len( name ))
-            self.max_d_func_name_len = max( self.max_d_func_name_len, len( name ))
+            self.max_d_func_name_len = max( self.max_d_func_name_len, name_len )
 
             # for convenience functions we remove the first parameter if it is a VkDevice or VkCommandBuffer
             # additionally we remove the const( VkAllocationCallbacks )* pAllocator parameter
@@ -691,9 +691,8 @@ class DGenerator( OutputGenerator ):
         # construct loader for instance level functions
         elif name not in { 'vkGetInstanceProcAddr', 'vkEnumerateInstanceExtensionProperties', 'vkEnumerateInstanceLayerProperties', 'vkCreateInstance' }:
             self.feature_content[ self.currentFeature ][ 'Instance_Funcs' ].append(
-                '{0}{{LJUST_NAME}} = cast( PFN_{0}{{LJUST_NAME}} ) vkGetInstanceProcAddr( instance, "{0}" );'.format( name ))
-            self.feature_content[ self.currentFeature ][ 'I_Func_Name_Lengths' ].append( len( name ))
-            self.max_i_func_name_len = max( self.max_i_func_name_len, len( name ))
+                ( '{0}{{LJUST_NAME}} = cast( PFN_{0}{{LJUST_NAME}} ) vkGetInstanceProcAddr( instance, "{0}" );'.format( name ), name_len ))
+            self.max_i_func_name_len = max( self.max_i_func_name_len, name_len )
 
 
 class DGeneratorOptions( GeneratorOptions ):

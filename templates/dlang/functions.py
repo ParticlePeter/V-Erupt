@@ -28,7 +28,7 @@ __gshared {{
 /// sets vkCreateInstance function pointer and acquires basic functions to retrieve information about the implementation
 /// and create an instance: vkEnumerateInstanceExtensionProperties, vkEnumerateInstanceLayerProperties, vkCreateInstance
 void loadGlobalLevelFunctions( PFN_vkGetInstanceProcAddr getInstanceProcAddr ) {{
-{IND}vkGetInstanceProcAddr                  = getInstanceProcAddr;
+{IND}vkGetInstanceProcAddr = getInstanceProcAddr;
 {GLOBAL_LEVEL_FUNCS}
 }}
 
