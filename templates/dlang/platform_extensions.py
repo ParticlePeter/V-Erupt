@@ -1,7 +1,7 @@
-STATIC_IF = """
-{IND}// {PLATFORM_EXTENSION}{COMMENT}
-{IND}{ELSE_PREFIX}static if( __traits( isSame, extension, {PLATFORM_EXTENSION} )) {OPEN_FORMAT}{{
-{EXTENSION_SECTION}
+STATIC_IF_EXTENSION = """
+{IND}// VK_{EXTENSION}{COMMENT}
+{IND}{ELSE_PREFIX}static if( __traits( isSame, extension, {EXTENSION} )) {OPEN_FORMAT}{{
+{SECTIONS}
 {IND}}}{CLOSE_FORMAT}
 """
 
@@ -14,10 +14,7 @@ PLATFORM_EXTENSIONS = """\
  * License:   $(https://opensource.org/licenses/MIT, MIT License).
  * Authors: Copyright 2016 Alex Parrill, Peter Particle
  */
-module {PACKAGE_PREFIX}.platform.mixin_extensions;
-
-nothrow @nogc:
-
+module {PACKAGE_PREFIX}.platform_extensions;
 
 /// define platform extension names as enums
 /// these enums can be used directly in Platform_Extensions mixin template
@@ -38,6 +35,9 @@ mixin template Platform_Extensions( extensions... ) {{
 {IND}public import {PACKAGE_PREFIX}.types;
 {IND}public import {PACKAGE_PREFIX}.functions;
 {IND}import {PACKAGE_PREFIX}.dispatch_device;
+
+{IND}// mixin function linkage, nothrow and @nogc attributes for subsecuent functions
+{IND}extern(System) nothrow @nogc:
 
 {IND}// remove duplicates from alias sequence
 {IND}// this might happen if a platform extension collection AND a single extension, which is included in the collection, was specified
