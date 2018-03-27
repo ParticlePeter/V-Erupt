@@ -11,24 +11,20 @@ module {PACKAGE_PREFIX}.types;
 nothrow @nogc:
 
 
-alias uint8_t = ubyte;
-alias uint16_t = ushort;
-alias uint32_t = uint;
-alias uint64_t = ulong;
-alias int8_t = byte;
-alias int16_t = short;
-alias int32_t = int;
-alias int64_t = long;
+// defined in vk_platform.h
+alias uint8_t   = ubyte;
+alias uint16_t  = ushort;
+alias uint32_t  = uint;
+alias uint64_t  = ulong;
+alias int8_t    = byte;
+alias int16_t   = short;
+alias int32_t   = int;
+alias int64_t   = long;
+
 
 // version functions / macros
 pure {{
-    uint VK_MAKE_VERSION( uint major, uint minor, uint patch ) {{
-        return ( major << 22 ) | ( minor << 12 ) | ( patch );
-    }}
-
-    // Vulkan 1.0 version number
-    uint VK_API_VERSION_1_0() {{ return VK_MAKE_VERSION( 1, 0, 0 ); }}
-
+    uint VK_MAKE_VERSION( uint major, uint minor, uint patch ) {{ return ( major << 22 ) | ( minor << 12 ) | ( patch ); }}
     uint VK_VERSION_MAJOR( uint ver ) {{ return ver >> 22; }}
     uint VK_VERSION_MINOR( uint ver ) {{ return ( ver >> 12 ) & 0x3ff; }}
     uint VK_VERSION_PATCH( uint ver ) {{ return ver & 0xfff; }}
