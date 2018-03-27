@@ -35,7 +35,7 @@ void loadGlobalLevelFunctions( PFN_vkGetInstanceProcAddr getInstanceProcAddr ) {
 
 /// with a valid VkInstance call this function to retrieve additional VkInstance, VkPhysicalDevice, ... related functions
 void loadInstanceLevelFunctions( VkInstance instance ) {{
-{IND}assert( vkGetInstanceProcAddr !is null, "Must call loadGlobalLevelFunctions before loadInstanceLevelFunctions" );
+{IND}assert( vkGetInstanceProcAddr !is null, "Function pointer vkGetInstanceProcAddr is null!\\nCall loadGlobalLevelFunctions -> loadInstanceLevelFunctions" );
 {INSTANCE_LEVEL_FUNCS}
 }}
 
@@ -44,7 +44,7 @@ void loadInstanceLevelFunctions( VkInstance instance ) {{
 /// the functions call indirectly through the VkInstance and will be internally dispatched by the implementation
 /// use loadDeviceLevelFunctions( VkDevice device ) bellow to avoid this indirection and get the pointers directly form a VkDevice
 void loadDeviceLevelFunctions( VkInstance instance ) {{
-{IND}assert( vkGetInstanceProcAddr !is null, "Must call loadInstanceLevelFunctions before loadDeviceLevelFunctions" );
+{IND}assert( vkGetInstanceProcAddr !is null, "Function pointer vkGetInstanceProcAddr is null!\\nCall loadGlobalLevelFunctions -> loadDeviceLevelFunctions( instance )" );
 {DEVICE_I_LEVEL_FUNCS}
 }}
 
@@ -52,9 +52,9 @@ void loadDeviceLevelFunctions( VkInstance instance ) {{
 /// with a valid VkDevice call this function to retrieve VkDevice, VkQueue and VkCommandBuffer related functions
 /// the functions call directly VkDevice and related resources and can be retrieved for one and only one VkDevice
 /// calling this function again with another VkDevices will overwrite the __gshared functions retrieved previously
-/// use createGroupedDeviceLevelFunctions bellow if usage of multiple VkDevices is required
+/// see module {PACKAGE_PREFIX}.dispatch_device if multiple VkDevices will be used
 void loadDeviceLevelFunctions( VkDevice device ) {{
-{IND}assert( vkGetDeviceProcAddr !is null, "Must call loadInstanceLevelFunctions before loadDeviceLevelFunctions" );
+{IND}assert( vkGetDeviceProcAddr !is null, "Function pointer vkGetDeviceProcAddr is null!\\nCall loadGlobalLevelFunctions -> loadInstanceLevelFunctions -> loadDeviceLevelFunctions( device )" );
 {DEVICE_D_LEVEL_FUNCS}
 }}
 """

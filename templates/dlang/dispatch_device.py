@@ -56,7 +56,7 @@ struct DispatchDevice {{
 {IND}///      dd.vkDestroyDevice( dd.vkDevice, pAllocator );
 {IND}/// convenience functions to omit the first arg and the allocator do exist, see bellow
 {IND}void loadDeviceLevelFunctions( VkDevice device, const( VkAllocationCallbacks )* allocator = null ) {{
-{IND}{IND}assert( vkGetDeviceProcAddr !is null, "Must call loadInstanceLevelFunctions before DispatchDevice.loadDeviceLevelFunctions" );
+{IND}{IND}assert( vkGetInstanceProcAddr !is null, "Function pointer vkGetInstanceProcAddr is null!\\nCall loadGlobalLevelFunctions -> loadInstanceLevelFunctions -> DispatchDevice.loadDeviceLevelFunctions" );
 {IND}{IND}this.allocator = allocator;
 {IND}{IND}this.device = device;
 {DISPATCH_MEMBER_FUNCS}
