@@ -326,14 +326,14 @@ class DGenerator( OutputGenerator ):
                     extension_section += self.feature_content[ extension ][ section ]
 
                 if extension_section:
-                    result += STATIC_IF.format(
-                        IND = indent,
-                        PLATFORM_EXTENSION = extension,
-                        COMMENT = comment,
-                        OPEN_FORMAT = open_format,
-                        ELSE_PREFIX = else_prefix,
-                        EXTENSION_SECTION = indent + self.indent + joiner.join( extension_section ),
-                        CLOSE_FORMAT = close_format,
+                    result += STATIC_IF_EXTENSION.format(
+                        IND             = indent,
+                        EXTENSION       = extension[3:],
+                        COMMENT         = comment,
+                        OPEN_FORMAT     = open_format,
+                        ELSE_PREFIX     = else_prefix,
+                        SECTIONS        = indent + self.indent + joiner.join( extension_section ),
+                        CLOSE_FORMAT    = close_format,
                     )
                     else_prefix = 'else '
 
