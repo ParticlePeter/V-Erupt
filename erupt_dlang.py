@@ -571,12 +571,10 @@ class DGenerator( OutputGenerator ):
 
 
         # group enums by their name
-        scoped_enums = 'enum ' + group_name + ' {'
+        scoped_group = 'enum ' + group_name + ' {'
 
         # add grouped enums to global scope
-        global_enums = ''
-
-        is_enum = ( 'FLAG_BITS' not in name_prefix )
+        global_group = ''
 
         # Loop over the nested 'enum' tags. Keep track of the min_value and
         # maximum numeric values, if they can be determined; but only for
@@ -587,6 +585,10 @@ class DGenerator( OutputGenerator ):
         max_global_len = max( max_global_len, len( name_prefix ) + 13 ) # len( '_BEGIN_RANGE' ) = 12
         max_scoped_len = max_global_len + 1 # global enums are one char longer than scoped enums, hence + 1
 
+        # somehow enum items from vulkan 1.1 and extensions end up here as parameters and collide
+        # we need each enum item only once, hence we skip if the item was processed once already
+        scoped_elem_set = set()
+
         for elem in group_elem.findall( 'enum' ):
             # Convert the value to an integer and use that to track min/max.
             # Values of form -( number ) are accepted but nothing more complex.
@@ -594,13 +596,16 @@ class DGenerator( OutputGenerator ):
             ( enum_val, enum_str ) = self.enumToValue( elem, True )
             name = elem.get( 'name' )
 
-            # Extension enumerants are only included if they are requested
+            # Extension enumerates are only included if they are requested
             # in addExtensions or match defaultExtensions.
             if ( elem.get( 'extname' ) is None or
                 re.match( self.genOpts.addExtensions, elem.get( 'extname' )) is not None or
                 self.genOpts.defaultExtensions == elem.get( 'supported' )):
-                scoped_enums += '\n{0}{1} = {2},'.format( self.indent, name.ljust( max_scoped_len ), enum_str )
-                global_enums += '\nenum {0} = {1}.{2};'.format( name.ljust( max_global_len ), group_name, name )
+                scoped_elem = '\n{0}{1} = {2},'.format( self.indent, name.ljust( max_scoped_len ), enum_str )
+                if scoped_elem not in scoped_elem_set:
+                    scoped_elem_set.add( scoped_elem )
+                    scoped_group += scoped_elem
+                    global_group += '\nenum {0} = {1}.{2};'.format( name.ljust( max_global_len ), group_name, name )
 
             if is_enum and elem.get( 'extends' ) is None:
                 if min_name is None:
@@ -616,25 +621,28 @@ class DGenerator( OutputGenerator ):
         # Generate min/max value tokens and a range-padding enum. Need some
         # additional padding to generate correct names...
         if is_enum:
-            scoped_enums += '\n' + self.indent + ( name_prefix + '_BEGIN_RANGE' + name_suffix ).ljust( max_scoped_len ) + ' = ' + min_name + ','
-            scoped_enums += '\n' + self.indent + ( name_prefix + '_END_RANGE'   + name_suffix ).ljust( max_scoped_len ) + ' = ' + max_name + ','
-            scoped_enums += '\n' + self.indent + ( name_prefix + '_RANGE_SIZE'  + name_suffix ).ljust( max_scoped_len ) + ' = ' + max_name + ' - ' + min_name + ' + 1,'
+            scoped_group += '\n' + self.indent + ( name_prefix + '_BEGIN_RANGE' + name_suffix ).ljust( max_scoped_len ) + ' = ' + min_name + ','
+            scoped_group += '\n' + self.indent + ( name_prefix + '_END_RANGE'   + name_suffix ).ljust( max_scoped_len ) + ' = ' + max_name + ','
+            scoped_group += '\n' + self.indent + ( name_prefix + '_RANGE_SIZE'  + name_suffix ).ljust( max_scoped_len ) + ' = ' + max_name + ' - ' + min_name + ' + 1,'
 
-            global_enums += '\nenum {0} = {1}.{2}{3}{4};'.format( ( name_prefix + '_BEGIN_RANGE' + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_BEGIN_RANGE', name_suffix )
-            global_enums += '\nenum {0} = {1}.{2}{3}{4};'.format( ( name_prefix + '_END_RANGE'   + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_END_RANGE'  , name_suffix )
-            global_enums += '\nenum {0} = {1}.{2}{3}{4};'.format( ( name_prefix + '_RANGE_SIZE'  + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_RANGE_SIZE' , name_suffix )
+            global_group += '\nenum {0} = {1}.{2}{3}{4};'.format( ( name_prefix + '_BEGIN_RANGE' + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_BEGIN_RANGE', name_suffix )
+            global_group += '\nenum {0} = {1}.{2}{3}{4};'.format( ( name_prefix + '_END_RANGE'   + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_END_RANGE'  , name_suffix )
+            global_group += '\nenum {0} = {1}.{2}{3}{4};'.format( ( name_prefix + '_RANGE_SIZE'  + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_RANGE_SIZE' , name_suffix )
 
-        scoped_enums += '\n' + self.indent + ( name_prefix + '_MAX_ENUM' + name_suffix ).ljust( max_scoped_len ) + ' = 0x7FFFFFFF\n}'
-        global_enums += '\nenum {0} = {1}.{2}{3}{4};'.format( ( name_prefix + '_MAX_ENUM' + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_MAX_ENUM' , name_suffix )
+        scoped_group += '\n' + self.indent + ( name_prefix + '_MAX_ENUM' + name_suffix ).ljust( max_scoped_len ) + ' = 0x7FFFFFFF\n}'
+        global_group += '\nenum {0} = {1}.{2}{3}{4};'.format( ( name_prefix + '_MAX_ENUM' + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_MAX_ENUM' , name_suffix )
 
-        if group_elem.get( 'type' ) == 'bitmask':
-            if self.sections[ 'bitmask' ]:
-                self.appendSection( 'bitmask', '' )     # this empty string will be terminated with '\n' at the join operation
-            self.appendSection( 'bitmask', scoped_enums + global_enums )
-        else:
+
+        if is_enum:
             if self.sections[ 'group' ]:
                 self.appendSection( 'group', '' )       # this empty string will be terminated with '\n' at the join operation
-            self.appendSection( 'group', scoped_enums + global_enums )
+            self.appendSection( 'group', scoped_group + global_group )
+
+        else:
+            if self.sections[ 'bitmask' ]:
+                self.appendSection( 'bitmask', '' )     # this empty string will be terminated with '\n' at the join operation
+            self.appendSection( 'bitmask', scoped_group + global_group )
+
 
 
     # enum VK_TRUE = 1; enum VK_FALSE = 0; enum _SPEC_VERSION = ; enum _EXTENSION_NAME = ;
