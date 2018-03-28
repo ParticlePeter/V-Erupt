@@ -115,8 +115,8 @@ class DGenerator( OutputGenerator ):
 
 
         # open test file here, we might circumvent tests_file_content and write directly to the file
-        self.tests_file_content = ''
-        self.tests_file = open( 'test.txt', 'w', encoding = 'utf-8' )
+        #self.tests_file_content = ''
+        #self.tests_file = open( 'test.txt', 'w', encoding = 'utf-8' )
 
 
         # since v1.1.70 we only get platform names per feature, but not their protect string
@@ -376,8 +376,8 @@ class DGenerator( OutputGenerator ):
 
 
         # write and close remaining tests data into tests.txt file
-        write( self.tests_file_content, file = self.tests_file )
-        self.tests_file.close()
+        #write( self.tests_file_content, file = self.tests_file )
+        #self.tests_file.close()
 
 
 
