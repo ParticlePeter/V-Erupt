@@ -109,7 +109,7 @@ class DGenerator( OutputGenerator ):
         self.genOpts = genOpts
         self.indent = genOpts.indentString
         try:
-            os.mkdir( genOpts.filename )
+            os.mkdir( genOpts.directory )
         except FileExistsError:
             pass
 
@@ -133,9 +133,9 @@ class DGenerator( OutputGenerator ):
         # -------------------- #
         # write package.d file #
         # -------------------- #
-        with open( path.join( self.genOpts.filename, 'package.d' ), 'w', encoding = 'utf-8' ) as d_module:
-            write( PACKAGE_HEADER.format( PACKAGE_PREFIX = self.genOpts.packagePrefix ), file = d_module )
 
+        with open( path.join( self.genOpts.directory, 'package.d' ), 'w', encoding = 'utf-8' ) as d_module:
+            write( PACKAGE_HEADER.format( PACKAGE_PREFIX = self.genOpts.packagePrefix ), file = d_module )
 
 
 
@@ -163,7 +163,7 @@ class DGenerator( OutputGenerator ):
             TYPE_DEFINITIONS    = typesSection(),
         )
 
-        with open( path.join( self.genOpts.filename, 'types.d' ), 'w', encoding = 'utf-8' ) as d_module:
+        with open( path.join( self.genOpts.directory, 'types.d' ), 'w', encoding = 'utf-8' ) as d_module:
             write( file_content, file = d_module )
 
 
@@ -262,7 +262,7 @@ class DGenerator( OutputGenerator ):
 
 
         # open, write and close functions.d file
-        with open( path.join( self.genOpts.filename, 'functions.d' ), 'w', encoding = 'utf-8' ) as d_module:
+        with open( path.join( self.genOpts.directory, 'functions.d' ), 'w', encoding = 'utf-8' ) as d_module:
             write( file_content, file = d_module )
 
 
@@ -284,7 +284,7 @@ class DGenerator( OutputGenerator ):
 
 
         # open, write and close functions.d file
-        with open( path.join( self.genOpts.filename, 'dispatch_device.d' ), 'w', encoding = 'utf-8' ) as d_module:
+        with open( path.join( self.genOpts.directory, 'dispatch_device.d' ), 'w', encoding = 'utf-8' ) as d_module:
             write( file_content, file = d_module )
 
 
@@ -362,7 +362,7 @@ class DGenerator( OutputGenerator ):
             )
 
 
-        with open( path.join( self.genOpts.filename, 'platform/mixin_extensions.d' ), 'w', encoding = 'utf-8' ) as d_module:
+        with open( path.join( self.genOpts.directory, 'platform_extensions.d' ), 'w', encoding = 'utf-8' ) as d_module:
             write( file_content, file = d_module )
 
 
@@ -370,7 +370,7 @@ class DGenerator( OutputGenerator ):
         # ------------------------------ #
         # write vulkan_lib_loader.d file #
         # ------------------------------ #
-        with open( path.join( self.genOpts.filename, 'vulkan_lib_loader.d' ), 'w', encoding = 'utf-8' ) as d_module:
+        with open( path.join( self.genOpts.directory, 'vulkan_lib_loader.d' ), 'w', encoding = 'utf-8' ) as d_module:
             write( LIB_LOADER.format( PACKAGE_PREFIX = self.genOpts.packagePrefix, IND = self.indent ), file = d_module )
 
 
@@ -810,7 +810,6 @@ if __name__ == '__main__':
     reg.setGenerator( gen )
     reg.apiGen(
         DGeneratorOptions(
-        filename        = args.outputDirectory,
         apiname         = 'vulkan',
         versions        = '.*',
         emitversions    = '.*',
@@ -821,6 +820,7 @@ if __name__ == '__main__':
         indentString    = args.indentString,
         #defaultExtensions = 'defaultExtensions',
         #removeExtensions = None#r'VK_KHR_.*_surface$'
+        directory           = args.outputDirectory,
     ))
 
 # 130: open  test file
