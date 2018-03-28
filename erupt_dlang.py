@@ -561,7 +561,13 @@ class DGenerator( OutputGenerator ):
     def genGroup( self, group_info, group_name, alias ):
         super().genGroup( group_info, group_name, alias )
 
-        group_elem = group_info.elem
+        group_elem  = group_info.elem
+        category    = group_elem.get( 'type' )
+        is_enum     = category == 'enum'
+
+        if alias:
+            self.appendSection( category, 'alias {0} = {1};'.format( group_name, alias ))
+            return  # its either alias xor enum group
 
         SNAKE_NAME = re.sub( r'([0-9a-z_])([A-Z0-9][^A-Z0-9]?)', r'\1_\2', group_name ).upper()
         #self.tests_file_content += group_name.ljust( 30 ) + ' : ' + SNAKE_NAME + '\n'
