@@ -383,7 +383,7 @@ class DGenerator( OutputGenerator ):
 
     # This is an ordered list of sections in the header file.
     TYPE_SECTIONS = [ 'include', 'define', 'basetype', 'handle', 'enum', 'group', 'bitmask', 'funcpointer', 'struct' ]
-    ALL_SECTIONS = TYPE_SECTIONS + [ 'command' ]
+    ALL_SECTIONS = TYPE_SECTIONS + ['commandPointer', 'command']
 
 
     # begin parsing of all types and functions of a certain feature / extension
