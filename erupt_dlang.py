@@ -249,13 +249,14 @@ class DGenerator( OutputGenerator ):
             IND = self.indent,
             PACKAGE_PREFIX              = self.genOpts.packagePrefix,
             FUNC_TYPE_ALIASES           = functionSection( 'Func_Type_Aliases', self.indent ),
-            FUNC_DECLARATIONS           = functionSection( 'Func_Declarations', self.indent ),
-            GLOBAL_LEVEL_FUNCS          = functionSection( 'Global_Funcs'     , self.indent ),
-            INSTANCE_LEVEL_FUNCS        = functionSection( 'Instance_Funcs'   , self.indent ),
-            DEVICE_I_LEVEL_FUNCS        = functionSection( 'Device_Funcs'     , self.indent,     'Instance' ),
-            DEVICE_D_LEVEL_FUNCS        = functionSection( 'Device_Funcs'     , self.indent,     'Device'   ),
-            DISPATCH_MEMBER_FUNCS       = functionSection( 'Device_Funcs'     , self.indent * 2, 'Device'   ),
-            DISPATCH_CONVENIENCE_FUNCS  = functionSection( 'Convenience_Funcs', self.indent ),
+            FUNC_DECLARATIONS           = functionSection( 'Func_Declarations', self.indent ) + '\n' \
+                                        + functionSection( 'Func_Aliases'     , self.indent ),
+            GLOBAL_LEVEL_FUNCS          = functionSection( 'Load_G_Funcs'     , self.indent ),
+            INSTANCE_LEVEL_FUNCS        = functionSection( 'Load_I_Funcs'     , self.indent ),
+            DEVICE_I_LEVEL_FUNCS        = functionSection( 'Load_D_Funcs'     , self.indent,     'Instance' ),
+            DEVICE_D_LEVEL_FUNCS        = functionSection( 'Load_D_Funcs'     , self.indent,     'Device'   ),
+            DISPATCH_MEMBER_FUNCS       = functionSection( 'Load_D_Funcs'     , self.indent * 2, 'Device'   ),
+            DISPATCH_CONVENIENCE_FUNCS  = functionSection( 'Conven_Funcs'     , self.indent ),
             DISPATCH_FUNC_DECLARATIONS  = functionSection( 'Disp_Declarations', self.indent ),
         )
 
@@ -274,9 +275,11 @@ class DGenerator( OutputGenerator ):
         file_content = DISPATCH_DEVICE.format(
             IND = self.indent,
             PACKAGE_PREFIX              = self.genOpts.packagePrefix,
-            DISPATCH_MEMBER_FUNCS       = functionSection( 'Device_Funcs'     , self.indent * 2, 'Device'   ),
-            DISPATCH_CONVENIENCE_FUNCS  = functionSection( 'Convenience_Funcs', self.indent ),
-            DISPATCH_FUNC_DECLARATIONS  = functionSection( 'Disp_Declarations', self.indent ),
+            DISPATCH_MEMBER_FUNCS       = functionSection( 'Load_D_Funcs'     , self.indent * 2, 'Device'   ),
+            DISPATCH_CONVENIENCE_FUNCS  = functionSection( 'Conven_Funcs'     , self.indent ) + '\n' \
+                                        + functionSection( 'Conven_Aliases'   , self.indent ),
+            DISPATCH_FUNC_DECLARATIONS  = functionSection( 'Disp_Declarations', self.indent ) + '\n' \
+                                        + functionSection( 'Disp_Aliases'     , self.indent ),
         )
 
 
@@ -350,11 +353,11 @@ class DGenerator( OutputGenerator ):
             PLATFORM_PROTECTIONS        = platformProtectionAlias(),
             TYPE_DEFINITIONS            = platformExtensionSection( [ 'Type_Definitions', 'Func_Type_Aliases' ], 2 * self.indent, ' : types and function pointer type aliases' ),
             FUNC_DECLARATIONS           = platformExtensionSection( [ 'Func_Declarations' ] , 3 * self.indent, ' : function pointer decelerations' ),
-            INSTANCE_LEVEL_FUNCS        = platformExtensionSection( [ 'Instance_Funcs'    ] , 3 * self.indent, ' : load instance level function definitions' ),
-            DEVICE_I_LEVEL_FUNCS        = platformExtensionSection( [ 'Device_Funcs'      ] , 3 * self.indent, ' : load instance based device level function definitions', 'Instance' ),
-            DEVICE_D_LEVEL_FUNCS        = platformExtensionSection( [ 'Device_Funcs'      ] , 3 * self.indent, ' : load device based device level function definitions'  , 'Device' ),
-            DISPATCH_MEMBER_FUNCS       = platformExtensionSection( [ 'Device_Funcs'      ] , 4 * self.indent, ' : load dispatch device member function definitions'     , 'Device' ),
-            DISPATCH_CONVENIENCE_FUNCS  = platformExtensionSection( [ 'Convenience_Funcs' ] , 3 * self.indent, ' : dispatch device convenience member functions' ),
+            INSTANCE_LEVEL_FUNCS        = platformExtensionSection( [ 'Load_I_Funcs'      ] , 3 * self.indent, ' : load instance level function definitions' ),
+            DEVICE_I_LEVEL_FUNCS        = platformExtensionSection( [ 'Load_D_Funcs'      ] , 3 * self.indent, ' : load instance based device level function definitions', 'Instance' ),
+            DEVICE_D_LEVEL_FUNCS        = platformExtensionSection( [ 'Load_D_Funcs'      ] , 3 * self.indent, ' : load device based device level function definitions'  , 'Device' ),
+            DISPATCH_MEMBER_FUNCS       = platformExtensionSection( [ 'Load_D_Funcs'      ] , 4 * self.indent, ' : load dispatch device member function definitions'     , 'Device' ),
+            DISPATCH_CONVENIENCE_FUNCS  = platformExtensionSection( [ 'Conven_Funcs'      ] , 3 * self.indent, ' : dispatch device convenience member functions' ),
             DISPATCH_FUNC_DECLARATIONS  = platformExtensionSection( [ 'Func_Declarations' ] , 3 * self.indent, ' : dispatch device member function pointer decelerations'  )
             )
 
@@ -413,11 +416,14 @@ class DGenerator( OutputGenerator ):
         self.feature_content[ self.featureName ]  = {
             'Func_Type_Aliases' : [],
             'Func_Declarations' : [],
-            'Global_Funcs' : [],
-            'Instance_Funcs' : [],
-            'Device_Funcs' : [],
-            'Convenience_Funcs' : [],
+            'Func_Aliases' : [],
+            'Load_G_Funcs' : [],
+            'Load_I_Funcs' : [],
+            'Load_D_Funcs' : [],
+            'Conven_Funcs' : [],
+            'Conven_Aliases' : [],
             'Disp_Declarations' : [],
+            'Disp_Aliases' : []
         }
         self.sections = dict( [ ( section, [] ) for section in self.ALL_SECTIONS ] )
 
@@ -659,41 +665,90 @@ class DGenerator( OutputGenerator ):
         #self.tests_file_content += 'enum {0} = {1};'.format( name, enum_str ) + '\n'
 
 
+
     # functions
     def genCmd( self, cmdinfo, name, alias ):
         super().genCmd( cmdinfo, name, alias )
-        proto = cmdinfo.elem.find( 'proto' )
-        return_type = getFullType( proto ).strip()
 
-        # modify the return type to align functions for better readability and keep track of the maximum function name length
-        do_return = ''
-        if return_type == 'void':   return_type = 'void    '
-        else:                       do_return = 'return '
+        # store get name length and store the maximum function name length
         name_len = len( name )
         self.max_func_name_len = max( self.max_func_name_len, name_len )
 
+
+        # get params of this function, we require the first param type
+        # before we evaluate aliases, to determine if alias ends up in dispatch device
+        params  = cmdinfo.elem.findall( 'param' )
+        param_0_type = getFullType( params[ 0 ] )
+
+
+        # alias global and DispatchDevice functions
+        if alias:
+
+            # alias global scope functions
+            self.feature_content[ self.featureName ][ 'Func_Aliases' ].append(
+                ( 'alias {0}{{LJUST_NAME}} = {1};'.format( name, alias ), name_len ) )
+
+            # alias dispatch device functions and partially device scope vulkan funcs (for VkDevice and VkCommandBuffer)
+            if param_0_type in ( 'VkDevice', 'VkCommandBuffer' ):
+                self.feature_content[ self.featureName ][ 'Conven_Aliases' ].append(
+                    ( 'alias {0}{{LJUST_NAME}} = {1};'.format( name[2:], alias[2:] ), name_len ) )
+                self.feature_content[ self.featureName ][ 'Disp_Aliases' ].append(
+                    ( 'alias {0}{{LJUST_NAME}} = {1};'.format( name, alias ), name_len ) )
+                self.max_d_func_name_len = max( self.max_d_func_name_len, name_len )
+
+            # second part of device scope vulkan funcs (for VkQueue, for which no convenience fucs exist)
+            elif param_0_type == 'VkQueue':
+                self.feature_content[ self.featureName ][ 'Disp_Aliases' ].append(
+                    ( 'alias {0}{{LJUST_NAME}} = {1};'.format( name, alias ), name_len ) )
+                self.max_d_func_name_len = max( self.max_d_func_name_len, name_len )
+
+            return  # its either alias or full functions
+
+
+        # get and modify the return type to align functions for better readability
+        proto = cmdinfo.elem.find( 'proto' )
+        return_type = getFullType( proto ).strip()
+        do_return = ''
+        if return_type == 'void':   return_type = 'void    '
+        else:                       do_return = 'return '
+
+
         # a parameter consist of a type and a name, here we merge all parameters into a list
-        params = cmdinfo.elem.findall( 'param' )
-        joined_params  = ', '.join( getFullType( param ).strip() + ' ' + param.find( 'name' ).text for param in params )
+        joined_params = ', '.join( getFullType( param ).strip() + ' ' + param.find( 'name' ).text for param in params )
+
 
         # construct function pointer prototypes, declarations and keep track of each function name length for aligning purpose
         # some of the function items are stored as tuple of ( func item string, func name length ), we use the latter for alignment
         # the other function items are store as func item string, their alignment parameter is the same as of their tuple predecessors
         func_type_name = 'alias PFN_{0}{{LJUST_NAME}} = {1}  function( {2} );'.format( name, return_type, joined_params )
-        self.feature_content[ self.currentFeature ][ 'Func_Type_Aliases' ].append( ( func_type_name, name_len ))
-        self.feature_content[ self.currentFeature ][ 'Func_Declarations' ].append( 'PFN_{0}{{LJUST_NAME}} {0};'.format( name ))
+        self.feature_content[ self.featureName ][ 'Func_Type_Aliases' ].append( ( func_type_name, name_len ) )
+        self.feature_content[ self.featureName ][ 'Func_Declarations' ].append( 'PFN_{0}{{LJUST_NAME}} {0};'.format( name ))
+
+
+        # ignore vkGetInstanceProcAddr, it must be loaded from implementation lib
+        if name == 'vkGetInstanceProcAddr': pass
+
 
         # construct global level functions, which are used to parametrize and create a VkInstance
-        if getFullType( params[ 0 ] ) not in { 'VkInstance', 'VkPhysicalDevice', 'VkDevice', 'VkQueue', 'VkCommandBuffer' }:
-            self.feature_content[ self.currentFeature ][ 'Global_Funcs' ].append(
-                ( '{0}{{LJUST_NAME}} = cast( PFN_{0}{{LJUST_NAME}} ) vkGetInstanceProcAddr( instance, "{0}" );'.format( name ), name_len ))
+        elif param_0_type not in ( 'VkInstance', 'VkPhysicalDevice', 'VkDevice', 'VkQueue', 'VkCommandBuffer' ):
+            self.feature_content[ self.featureName ][ 'Load_G_Funcs' ].append(
+                ( '{0}{{LJUST_NAME}} = cast( PFN_{0}{{LJUST_NAME}} ) vkGetInstanceProcAddr( null, "{0}" );'.format( name ), name_len ) )
             self.max_g_func_name_len = max( self.max_g_func_name_len, name_len )
 
+
+        # construct loader for instance level functions
+        # vkGetDeviceProcAddr is an exception as it is an instance level function with para_0_type == 'VkDevvice'
+        elif param_0_type in ( 'VkPhysicalDevice', 'VkInstance' ) or name == 'vkGetDeviceProcAddr':
+            self.feature_content[ self.featureName ][ 'Load_I_Funcs' ].append(
+                ( '{0}{{LJUST_NAME}} = cast( PFN_{0}{{LJUST_NAME}} ) vkGetInstanceProcAddr( instance, "{0}" );'.format( name ), name_len ) )
+            self.max_i_func_name_len = max( self.max_i_func_name_len, name_len )
+
+
         # construct loader for device and instance based device level functions as well as dispatch device convenience functions
-        if name != 'vkGetDeviceProcAddr' and getFullType( params[ 0 ] ) in { 'VkDevice', 'VkQueue', 'VkCommandBuffer' }:
-            self.feature_content[ self.currentFeature ][ 'Device_Funcs' ].append(
-                ( '{0}{{LJUST_NAME}} = cast( PFN_{0}{{LJUST_NAME}} ) vkGet{{{{INSTANCE_OR_DEVICE}}}}ProcAddr( {{{{instance_or_device}}}}, "{0}" );'.format( name ), name_len ))
-            self.feature_content[ self.currentFeature ][ 'Disp_Declarations'   ].append( 'PFN_{0}{{LJUST_NAME}} {0};'.format( name ))
+        else: # param_0_type in ( 'VkDevice', 'VkQueue', 'VkCommandBuffer' ):
+            self.feature_content[ self.featureName ][ 'Load_D_Funcs' ].append(
+                ( '{0}{{LJUST_NAME}} = cast( PFN_{0}{{LJUST_NAME}} ) vkGet{{{{INSTANCE_OR_DEVICE}}}}ProcAddr( {{{{instance_or_device}}}}, "{0}" );'.format( name ), name_len ) )
+            self.feature_content[ self.featureName ][ 'Disp_Declarations'   ].append( 'PFN_{0}{{LJUST_NAME}} {0};'.format( name ))
             self.max_d_func_name_len = max( self.max_d_func_name_len, name_len )
 
             # for convenience functions we remove the first parameter if it is a VkDevice or VkCommandBuffer
@@ -706,22 +761,22 @@ class DGenerator( OutputGenerator ):
             joined_params = ', '.join( getFullType( param ).strip() + ' ' + param.find( 'name' ).text
                 for param in params[1:] if not getFullType( param ).strip().startswith( 'const( VkAllocationCallbacks )*' ))
 
-            # create convenience functions for DispatchDevice
-            if getFullType( params[ 0 ] ) == 'VkDevice':
+            # create VkDevice convenience functions for DispatchDevice
+            if param_0_type == 'VkDevice':
                 convenience_func = '{0}  {1}( {2} ) {{ {3}{4}( vkDevice{5} ); }}'.format(
                     return_type, name[2:], joined_params, do_return, name, joined_args ).replace( '(  )', '()' )
-                self.feature_content[ self.currentFeature ][ 'Convenience_Funcs' ].append( convenience_func )
+                self.feature_content[ self.featureName ][ 'Conven_Funcs' ].append( convenience_func )
 
-            elif getFullType( params[ 0 ] ) == 'VkCommandBuffer':
+            # create VkCommandBuffer convenience functions for DispatchDevice
+            elif param_0_type == 'VkCommandBuffer':
                 convenience_func = '{0}  {1}( {2} ) {{ {3}{4}( commandBuffer{5} ); }}'.format(
                     return_type, name[2:], joined_params, do_return, name, joined_args ).replace( '(  )', '()' )
-                self.feature_content[ self.currentFeature ][ 'Convenience_Funcs' ].append( convenience_func )
+                self.feature_content[ self.featureName ][ 'Conven_Funcs' ].append( convenience_func )
 
-        # construct loader for instance level functions
-        elif name not in { 'vkGetInstanceProcAddr', 'vkEnumerateInstanceExtensionProperties', 'vkEnumerateInstanceLayerProperties', 'vkCreateInstance' }:
-            self.feature_content[ self.currentFeature ][ 'Instance_Funcs' ].append(
-                ( '{0}{{LJUST_NAME}} = cast( PFN_{0}{{LJUST_NAME}} ) vkGetInstanceProcAddr( instance, "{0}" );'.format( name ), name_len ))
-            self.max_i_func_name_len = max( self.max_i_func_name_len, name_len )
+
+
+
+
 
 
 class DGeneratorOptions( GeneratorOptions ):
