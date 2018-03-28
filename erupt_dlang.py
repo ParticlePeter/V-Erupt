@@ -152,7 +152,7 @@ class DGenerator( OutputGenerator ):
             for feature in self.feature_order:
                 feature_section = self.feature_content[ feature ][ 'Type_Definitions' ]
                 if feature_section:
-                    result += '\n// {0}\n{1}\n'.format( feature, '\n'.join( feature_section ))
+                    result += '\n// - {0} -\n{1}\n'.format( feature, '\n'.join( feature_section ))
 
             return result[:-1]
 
@@ -298,7 +298,7 @@ class DGenerator( OutputGenerator ):
             max_protect_len = len( max( self.platform_protection_order, key=lambda p: len( p )))
             result = ''
             for protection in self.platform_protection_order:
-                result += 'alias {0} = AliasSeq!( {1} );\n'.format( protection.ljust( max_protect_len ), self.platform_extension_protection[ protection ] )
+                result += 'alias {0} = AliasSeq!( {1} );\n'.format( protection[3:].ljust( max_protect_len - 3 ), self.platform_extension_protection[ protection ] )
             return result
 
 
@@ -349,7 +349,7 @@ class DGenerator( OutputGenerator ):
         file_content = PLATFORM_EXTENSIONS.format(
             IND = self.indent,
             PACKAGE_PREFIX              = self.genOpts.packagePrefix,
-            PLATFORM_EXTENSIONS         = 'enum {0};'.format( ';\nenum '.join( self.platform_extension_order )),
+            PLATFORM_EXTENSIONS         = 'enum {0};'.format( ';\nenum '.join( [ extension[3:] for extension in self.platform_extension_order ] )),
             PLATFORM_PROTECTIONS        = platformProtectionAlias(),
             TYPE_DEFINITIONS            = platformExtensionSection( [ 'Type_Definitions', 'Func_Type_Aliases' ], 2 * self.indent, ' : types and function pointer type aliases' ),
             FUNC_DECLARATIONS           = platformExtensionSection( [ 'Func_Declarations' ] , 3 * self.indent, ' : function pointer decelerations' ),
@@ -401,9 +401,9 @@ class DGenerator( OutputGenerator ):
 
             # collect all features belonging to one protection in a string. Will be used in module platform_extensions
             if protection not in self.platform_extension_protection:
-                self.platform_extension_protection[ protection ] = self.featureName;
+                self.platform_extension_protection[ protection ] = self.featureName[3:];
             else:
-                self.platform_extension_protection[ protection ] += ', {0}'.format( self.featureName )
+                self.platform_extension_protection[ protection ] += ', {0}'.format( self.featureName[3:] )
 
             # handle the current feature as platform extension
             self.platform_extension_order.append( self.featureName )
@@ -412,8 +412,8 @@ class DGenerator( OutputGenerator ):
             # feature is not protected -> handle as normal types and functions
             self.feature_order.append( self.featureName )
 
-            'Type_Definitions' : [],
         self.feature_content[ self.featureName ]  = {
+            'Type_Definitions' : [ 'enum {0} = 1;\n'.format( self.featureName ) ],
             'Func_Type_Aliases' : [],
             'Func_Declarations' : [],
             'Func_Aliases' : [],
