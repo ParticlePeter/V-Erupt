@@ -484,6 +484,17 @@ class DGenerator( OutputGenerator ):
 
         category = typeinfo.elem.get( 'category' )
 
+        if alias:
+            self.appendSection( category, 'alias {0} = {1};'.format( name, alias ))
+            return
+
+
+        if category == 'define':
+            if name.startswith( 'VK_API_VERSION_' ):
+                api_version = name.lstrip( 'VK_API_VERSION_' )
+                self.appendSection( 'define', '// Vulkan {0} version number'.format( api_version.replace( '_', '.' ) ))
+                self.appendSection( 'define', 'enum {0} = VK_MAKE_VERSION( {1}, 0 );  // Patch version should always be set to 0'.format( name, api_version.replace( '_', ', ' )))
+
         # alias VkFlags = uint32_t;
         if category == 'basetype':
             self.appendSection( 'basetype', 'alias {0} = {1};'.format( name, typeinfo.elem.find( 'type' ).text ))
@@ -660,6 +671,12 @@ class DGenerator( OutputGenerator ):
     # enum VK_TRUE = 1; enum VK_FALSE = 0; enum _SPEC_VERSION = ; enum _EXTENSION_NAME = ;
     def genEnum( self, enuminfo, name, alias ):
         super().genEnum( enuminfo, name, alias )
+
+        if alias:
+            self.appendSection( 'enum', 'alias {0} = {1};'.format( name, alias ))
+            #self.tests_file_content += 'alias {0} = {1};\n'.format( name, alias )
+            return
+
         _,enum_str = self.enumToValue( enuminfo.elem, False )
         if enum_str == 'VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT':
             enum_str = 'VkStructureType.' + enum_str
