@@ -121,8 +121,8 @@ class DGenerator( OutputGenerator ):
 
         # since v1.1.70 we only get platform names per feature, but not their protect string
         # these are stored in vk.xml in platform tags, we extract them and map
-        # pltform name to platform protection
-        for platform in self.registry.tree.findall('platforms/platform'):
+        # platform name to platform protection
+        for platform in self.registry.tree.findall( 'platforms/platform' ):
             self.platform_name_protection[ platform.get( 'name' ) ] = platform.get( 'protect' )
 
 
@@ -136,35 +136,6 @@ class DGenerator( OutputGenerator ):
         with open( path.join( self.genOpts.filename, 'package.d' ), 'w', encoding = 'utf-8' ) as d_module:
             write( PACKAGE_HEADER.format( PACKAGE_PREFIX = self.genOpts.packagePrefix ), file = d_module )
 
-
-
-        # ----------------- #
-        # justify functions #
-        # ----------------- #
-
-        # loop through all functions of all features and align their names
-        # in the outer loop are tree categories, each category has a different per feature count of functions items
-        # we store the function name length in only one function item, it can be reused with the other items in the same category
-        # the items which store the name length are tuples of ( func item string, func name length )
-        # the others are simply func item strings
-        for value in self.feature_content.values():
-            for i in range( len( value[ 'Func_Type_Aliases' ] )):
-                lj = self.max_func_name_len       - value[ 'Func_Type_Aliases' ][ i ][ 1 ]
-                value[ 'Func_Type_Aliases' ][ i ] = value[ 'Func_Type_Aliases' ][ i ][ 0 ].format( LJUST_NAME = lj * ' ' )
-                value[ 'Func_Declarations' ][ i ] = value[ 'Func_Declarations' ][ i ].format( LJUST_NAME = lj * ' ' )
-
-            for i in range( len( value[ 'Global_Funcs' ] )):
-                lj = self.max_g_func_name_len - value[ 'Global_Funcs' ][ i ][ 1 ]
-                value[ 'Global_Funcs' ][ i ]  = value[ 'Global_Funcs' ][ i ][ 0 ].format( LJUST_NAME = lj * ' ' )
-
-            for i in range( len( value[ 'Instance_Funcs' ] )):
-                lj = self.max_i_func_name_len  - value[ 'Instance_Funcs' ][ i ][ 1 ]
-                value[ 'Instance_Funcs' ][ i ] = value[ 'Instance_Funcs' ][ i ][ 0 ].format( LJUST_NAME = lj * ' ' )
-
-            for i in range( len( value[ 'Device_Funcs' ] )):
-                lj = self.max_d_func_name_len     - value[ 'Device_Funcs' ][ i ][ 1 ]
-                value[ 'Device_Funcs'      ][ i ] = value[ 'Device_Funcs' ][ i ][ 0 ].format( LJUST_NAME = lj * ' ' )
-                value[ 'Disp_Declarations' ][ i ] = value[ 'Disp_Declarations' ][ i ].format( LJUST_NAME = lj * ' ' )
 
 
 
@@ -194,6 +165,58 @@ class DGenerator( OutputGenerator ):
 
         with open( path.join( self.genOpts.filename, 'types.d' ), 'w', encoding = 'utf-8' ) as d_module:
             write( file_content, file = d_module )
+
+
+
+        # ----------------- #
+        # justify functions #
+        # ----------------- #
+
+        # loop through all functions of all features and align their names
+        # in the outer loop are tree categories, each category has a different per feature count of functions items
+        # we store the function name length in only one function item, it can be reused with the other items in the same category
+        # the items which store the name length are tuples of ( func item string, func name length )
+        # the others are simply func item strings
+        for value in self.feature_content.values():
+
+            # function type aliases: alias PFN_vkFuncName = return_type function( params );
+            # function declarations: PFN_vkFuncName = vkFuncName
+            for i in range( len( value[ 'Func_Type_Aliases' ] )):
+                lj = self.max_func_name_len       - value[ 'Func_Type_Aliases' ][ i ][ 1 ]
+                value[ 'Func_Type_Aliases' ][ i ] = value[ 'Func_Type_Aliases' ][ i ][ 0 ].format( LJUST_NAME = lj * ' ' )
+                value[ 'Func_Declarations' ][ i ] = value[ 'Func_Declarations' ][ i ].format( LJUST_NAME = lj * ' ' )
+
+            # global function aliases for extensions merged into vulkan 1.1: alias vkFuncNameKHR = vkFuncName;
+            for i in range( len( value[ 'Func_Aliases' ] )):
+                lj = self.max_func_name_len  - value[ 'Func_Aliases' ][ i ][ 1 ] + 6 # length of alias_
+                value[ 'Func_Aliases' ][ i ] = value[ 'Func_Aliases' ][ i ][ 0 ].format( LJUST_NAME = lj * ' ' )
+
+            # global level functions: vkFuncName = cast( PFN_vkFuncName ) vkGetInstanceProcAddr( instance, "vkFuncName" );
+            for i in range( len( value[ 'Load_G_Funcs' ] )):
+                lj = self.max_g_func_name_len - value[ 'Load_G_Funcs' ][ i ][ 1 ]
+                value[ 'Load_G_Funcs' ][ i ]  = value[ 'Load_G_Funcs' ][ i ][ 0 ].format( LJUST_NAME = lj * ' ' )
+
+            # instance level functions: vkFuncName = cast( PFN_vkFuncName ) vkGetInstanceProcAddr( instance, "vkFuncName" );
+            for i in range( len( value[ 'Load_I_Funcs' ] )):
+                lj = self.max_i_func_name_len  - value[ 'Load_I_Funcs' ][ i ][ 1 ]
+                value[ 'Load_I_Funcs' ][ i ] = value[ 'Load_I_Funcs' ][ i ][ 0 ].format( LJUST_NAME = lj * ' ' )
+
+            # device level functions: vkFuncName = cast( PFN_vkFuncName ) vkGetDeviceProcAddr( device, "vkFuncName" );
+            # dispatch declarations:  return_type FuncName( params ) { return vkFuncName( device, params ); }
+            for i in range( len( value[ 'Load_D_Funcs' ] )):
+                lj = self.max_d_func_name_len     - value[ 'Load_D_Funcs' ][ i ][ 1 ]
+                value[ 'Load_D_Funcs'      ][ i ] = value[ 'Load_D_Funcs' ][ i ][ 0 ].format( LJUST_NAME = lj * ' ' )
+                value[ 'Disp_Declarations' ][ i ] = value[ 'Disp_Declarations' ][ i ].format( LJUST_NAME = lj * ' ' )
+
+            # dispatch device convenience function aliases for extensions merged into vulkan 1.1: alias FuncNameKHR = FuncName;
+            for i in range( len( value[ 'Conven_Aliases' ] )):
+                lj = self.max_d_func_name_len  - value[ 'Conven_Aliases' ][ i ][ 1 ] + 6 # length of alias_
+                value[ 'Conven_Aliases' ][ i ] = value[ 'Conven_Aliases' ][ i ][ 0 ].format( LJUST_NAME = lj * ' ' )
+
+            # dispatch device function aliases for extensions merged into vulkan 1.1: alias vkFuncNameKHR = vkFuncName;
+            for i in range( len( value[ 'Disp_Aliases' ] )):
+                lj = self.max_d_func_name_len - value[ 'Disp_Aliases' ][ i ][ 1 ] + 6 # length of alias_
+                value[ 'Disp_Aliases' ][ i ]  = value[ 'Disp_Aliases' ][ i ][ 0 ].format( LJUST_NAME = lj * ' ' )
 
 
 
@@ -263,9 +286,9 @@ class DGenerator( OutputGenerator ):
 
 
 
-        # -------------------------------------- #
-        # write platform/mixin_extensions.d file #
-        # -------------------------------------- #
+        # -------------------------------- #
+        # write platform_extensions.d file #
+        # -------------------------------- #
 
         # helper function to construct AliasSequnces of extension enums
         def platformProtectionAlias():
@@ -277,7 +300,7 @@ class DGenerator( OutputGenerator ):
 
 
         # helper function to populate a (else) static if block with corresponding code
-        def platformExtensionSection( section, indent = '', comment = '', Instance_or_Device = '' ):
+        def platformExtensionSection( sections, indent = '', comment = '', Instance_or_Device = '' ):
             result = ''
             else_prefix  = ''
             open_format  = ''
@@ -296,8 +319,8 @@ class DGenerator( OutputGenerator ):
                 # We want to merge of Type_Definitions and Func_Type_Aliases into one static if block
                 # hence we pass each section type as a list so we can combine several of them first
                 extension_section = []
-                for sect in section:
-                    extension_section += self.feature_content[ extension ][ sect ]
+                for section in sections:
+                    extension_section += self.feature_content[ extension ][ section ]
 
                 if extension_section:
                     result += STATIC_IF.format(
@@ -312,7 +335,7 @@ class DGenerator( OutputGenerator ):
                     else_prefix = 'else '
 
             # some of the sections need formating before being merged into one code block
-            # in these cases the  substitute parameter will contain the coresponding term
+            # in these cases the substitute parameter will contain the corresponding term
             if Instance_or_Device:
                 result = result.format( INSTANCE_OR_DEVICE = Instance_or_Device, instance_or_device = Instance_or_Device.lower())
 
@@ -364,8 +387,6 @@ class DGenerator( OutputGenerator ):
     def beginFeature( self, interface, emit ):
         OutputGenerator.beginFeature( self, interface, emit )
 
-        self.currentFeature = interface.get( 'name' )
-
         platform = interface.get( 'platform' )
         protection = self.platform_name_protection.get( platform, None )
 
@@ -375,21 +396,21 @@ class DGenerator( OutputGenerator ):
             if protection not in self.platform_protection_order:
                 self.platform_protection_order.append( protection )
 
-            # collect all features bolonging to one protection in a string. Will be used in module platform_extensions
+            # collect all features belonging to one protection in a string. Will be used in module platform_extensions
             if protection not in self.platform_extension_protection:
-                self.platform_extension_protection[ protection ] = self.currentFeature;
+                self.platform_extension_protection[ protection ] = self.featureName;
             else:
-                self.platform_extension_protection[ protection ] += ', {0}'.format( self.currentFeature )
+                self.platform_extension_protection[ protection ] += ', {0}'.format( self.featureName )
 
             # handle the current feature as platform extension
-            self.platform_extension_order.append( self.currentFeature )
+            self.platform_extension_order.append( self.featureName )
 
         else:
             # feature is not protected -> handle as normal types and functions
-            self.feature_order.append( self.currentFeature )
+            self.feature_order.append( self.featureName )
 
-        self.feature_content[ self.currentFeature ]  = {
             'Type_Definitions' : [],
+        self.feature_content[ self.featureName ]  = {
             'Func_Type_Aliases' : [],
             'Func_Declarations' : [],
             'Global_Funcs' : [],
@@ -401,15 +422,13 @@ class DGenerator( OutputGenerator ):
         self.sections = dict( [ ( section, [] ) for section in self.ALL_SECTIONS ] )
 
 
-    # end pasing of all types and functions of a certain feature / extension
+    # end parsing of all types and functions of a certain feature / extension
     def endFeature( self ):
+
         # exit this function if content is not supposed to be emitted
         if not self.emit: return
 
-
-
-
-        #self.tests_file_content += self.currentFeature + '\n'
+        #self.tests_file_content += self.featureName + '\n'
         #TYPE_SECTIONS = [
         #   'include', 'define', 'basetype', 'handle', 'enum', 'group', 'bitmask', 'funcpointer', 'struct' ]
         #self.tests_file_content += '\n'.join( self.sections[ 'basetype' ] )
@@ -427,7 +446,7 @@ class DGenerator( OutputGenerator ):
             if self.sections[ section ]:
                 file_content_list += self.sections[ section ] + [ '' ]
 
-        self.feature_content[ self.currentFeature ][ 'Type_Definitions' ] = file_content_list
+        self.feature_content[ self.featureName ][ 'Type_Definitions' ] += file_content_list
         file_content_list = []
 
 
@@ -443,6 +462,7 @@ class DGenerator( OutputGenerator ):
 
     def genType( self, typeinfo, name, alias ):
         super().genType( typeinfo, name, alias )
+
         if 'requires' in typeinfo.elem.attrib:
             required = typeinfo.elem.attrib[ 'requires' ]
             if required.endswith( '.h' ):
@@ -497,9 +517,10 @@ class DGenerator( OutputGenerator ):
             pass
 
 
-    # strucs and unions
+    # structs and unions
     def genStruct( self, typeinfo, name, alias ):
         super().genStruct( typeinfo, name, alias )
+
         category = typeinfo.elem.attrib[ 'category' ]
 
         if self.sections[ 'struct' ]:
