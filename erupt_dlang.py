@@ -825,81 +825,38 @@ if __name__ == '__main__':
         parser.add_argument( 'vulkandocs' )
         vkxml = sys.argv[ 1 ] + '/src/spec/vk.xml'
 
+    # erupt-dlang options
     parser.add_argument( 'outputDirectory' )
     parser.add_argument( '--packagePrefix', default = 'erupted' )
     parser.add_argument( '--namePrefix',    default = 'Erupted' )
     parser.add_argument( '--indentString',  default = '    ' )
 
-
-
+    # vulkan-docs options, not fully supported yet, maybe never
     parser.add_argument('-defaultExtensions',   action='store',         default='vulkan',   help='Specify a single class of extensions to add to targets')
-    parser.add_argument('-extension',           action='append',        default=[],         help='Specify an extension or extensions to add to targets')
-    parser.add_argument('-removeExtensions',    action='append',        default=[],         help='Specify an extension or extensions to remove from targets')
-    parser.add_argument('-emitExtensions',      action='append',        default=[],         help='Specify an extension or extensions to emit in targets')
-    parser.add_argument('-feature',             action='append',        default=[],         help='Specify a core API feature name or names to add to targets')
-    parser.add_argument('-debug',               action='store_true',                        help='Enable debugging')
-    parser.add_argument('-dump',                action='store_true',                        help='Enable dump to stderr')
-    parser.add_argument('-diagfile',            action='store',         default=None,       help='Write diagnostics to specified file')
-    parser.add_argument('-errfile',             action='store',         default=None,       help='Write errors and warnings to specified file instead of stderr')
-    parser.add_argument('-noprotect',           action='store_false',   dest='protect',     help='Disable inclusion protection in output headers')
-    parser.add_argument('-profile',             action='store_true',                        help='Enable profiling')
-    parser.add_argument('-registry',            action='store',         default='vk.xml',   help='Use specified registry file instead of vk.xml')
-    parser.add_argument('-time',                action='store_true',                        help='Enable timing')
-    parser.add_argument('-validate',            action='store_true',                        help='Enable group validation')
-    parser.add_argument('-o', dest='directory', action='store',         default='.',        help='Create target and related files in specified directory')
-    parser.add_argument('-quiet',               action='store_true',    default=True,       help='Suppress script output during normal execution.')
-    parser.add_argument('-verbose',dest='quiet',action='store_false',   default=True,       help='Enable script output during normal execution.')
-    parser.add_argument('target',               metavar='target', nargs='?',                help='Specify target')
+#   parser.add_argument('-extension',           action='append',        default=[],         help='Specify an extension or extensions to add to targets')
+#   parser.add_argument('-removeExtensions',    action='append',        default=[],         help='Specify an extension or extensions to remove from targets')
+#   parser.add_argument('-emitExtensions',      action='append',        default=[],         help='Specify an extension or extensions to emit in targets')
+#   parser.add_argument('-feature',             action='append',        default=[],         help='Specify a core API feature name or names to add to targets')
+#   parser.add_argument('-debug',               action='store_true',                        help='Enable debugging')
+#   parser.add_argument('-dump',                action='store_true',                        help='Enable dump to stderr')
+#   parser.add_argument('-diagfile',            action='store',         default=None,       help='Write diagnostics to specified file')
+#   parser.add_argument('-errfile',             action='store',         default=None,       help='Write errors and warnings to specified file instead of stderr')
+#   parser.add_argument('-noprotect',           action='store_false',   dest='protect',     help='Disable inclusion protection in output headers')
+#   parser.add_argument('-profile',             action='store_true',                        help='Enable profiling')
+#   parser.add_argument('-registry',            action='store',         default='vk.xml',   help='Use specified registry file instead of vk.xml')
+#   parser.add_argument('-time',                action='store_true',                        help='Enable timing')
+#   parser.add_argument('-validate',            action='store_true',                        help='Enable group validation')
+#   parser.add_argument('-o', dest='directory', action='store',         default='.',        help='Create target and related files in specified directory')
+#   parser.add_argument('-quiet',               action='store_true',    default=True,       help='Suppress script output during normal execution.')
+#   parser.add_argument('-verbose',dest='quiet',action='store_false',   default=True,       help='Enable script output during normal execution.')
+#   parser.add_argument('target',               metavar='target', nargs='?',                help='Specify target')
 
     args = parser.parse_args()
 
 
 
-    # Turn a list of strings into a regexp string matching exactly those strings
-    def makeREstring(list, default = None):
-        if len(list) > 0 or default == None:
-            return '^(' + '|'.join(list) + ')$'
-        else:
-            return default
-
-    # Default class of extensions to include, or None
-    defaultExtensions = args.defaultExtensions
-
-    # Additional extensions to include (list of extensions)
-    extensions = args.extension
-
-    # Extensions to remove (list of extensions)
-    removeExtensions = args.removeExtensions
-
-    # Extensions to emit (list of extensions)
-    emitExtensions = args.emitExtensions
-
-    # Features to include (list of features)
-    features = args.feature
-
-    # Whether to disable inclusion protect in headers
-    protect = args.protect
-
-    # Output target directory
-    directory = args.directory
-
-    # Descriptive names for various regexp patterns used to select
-    # versions and extensions
-    allFeatures     = allExtensions = '.*'
-    noFeatures      = noExtensions = None
-
-    # Turn lists of names/patterns into matching regular expressions
-    addExtensionsPat     = makeREstring(extensions, None)
-    removeExtensionsPat  = makeREstring(removeExtensions, None)
-    emitExtensionsPat    = makeREstring(emitExtensions, allExtensions)
-    featuresPat          = makeREstring(features, allFeatures)
-
-
-
-
     gen = DGenerator()
     reg = Registry()
-#   reg.loadElementTree( etree.parse( vkxml ))
     reg.loadFile( vkxml )
     reg.setGenerator( gen )
     reg.apiGen(
@@ -907,16 +864,16 @@ if __name__ == '__main__':
         directory           = args.outputDirectory,
         apiname             = 'vulkan',
         profile             = None,
-        versions            = '.*',     # Their: featuresPat,
-        emitversions        = '.*',     # Their: featuresPat,
-        defaultExtensions   = defaultExtensions,
-        addExtensions       = None,         # Mine: r'.*',
-        removeExtensions    = None,         #'VK_KHR_device_group|VK_KHR_external_memory_capabilities|VK_KHR_external_semaphore_capabilities', #removeExtensionsPat,
-        emitExtensions      = '.*',         # Their: emitExtensionsPat,
+        versions            = '.*',
+        emitversions        = '.*',
+        defaultExtensions   = args.defaultExtensions,
+        addExtensions       = None,
+        removeExtensions    = None,
+        emitExtensions      = '.*',
         #prefixText         = prefixStrings + vkPrefixStrings,
         genFuncPointers     = True,
         #protectFile        = protectFile,
-        #protectFeature      = False,
+        #protectFeature     = False,
 
         indentString        = args.indentString,
         packagePrefix       = args.packagePrefix,
@@ -929,7 +886,3 @@ if __name__ == '__main__':
         #apientryp         = 'VKAPI_PTR *',
         #alignFuncParam    = 48)
     ))
-
-
-# 130: open  test file
-# 343: close test file
