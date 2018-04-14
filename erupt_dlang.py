@@ -21,7 +21,7 @@ from templates.dlang.platform_extensions import *
 
 
 if len( sys.argv ) > 2 and not sys.argv[ 2 ].startswith( '--' ):
-    sys.path.append( sys.argv[ 1 ] + '/src/spec/' )
+    sys.path.append( sys.argv[ 1 ] + '/xml/' )
 
 
 try:
@@ -823,7 +823,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     if len( sys.argv ) > 2 and not sys.argv[ 2 ].startswith( '--' ):
         parser.add_argument( 'vulkandocs' )
-        vkxml = sys.argv[ 1 ] + '/src/spec/vk.xml'
+        vkxml = sys.argv[ 1 ] + '/xml/vk.xml'
 
     # erupt-dlang options
     parser.add_argument( 'outputDirectory' )
