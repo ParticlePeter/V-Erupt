@@ -599,40 +599,60 @@ class DGenerator( OutputGenerator ):
         # add grouped enums to global scope
         global_group = ''
 
+        # Get a list of nested 'enum' tags.
+        enums = group_elem.findall( 'enum' )
+
+        # Check for and report duplicates, and return a list with them
+        # removed.
+        enums = self.checkDuplicateEnums( enums )
+
+        # source: cgenerator.py
         # Loop over the nested 'enum' tags. Keep track of the min_value and
         # maximum numeric values, if they can be determined; but only for
         # core API enumerants, not extension enumerants. This is inferred
         # by looking for 'extends' attributes.
         min_name = None
-        max_global_len = len( max( [ elem.get( 'name' ) for elem in group_elem.findall( 'enum' ) ], key=lambda name: len( name )))
+        max_global_len = len( max( [ elem.get( 'name' ) for elem in enums ], key=lambda name: len( name )))
         max_global_len = max( max_global_len, len( name_prefix ) + 13 ) # len( '_BEGIN_RANGE' ) = 12
         max_scoped_len = max_global_len + 1 # global enums are one char longer than scoped enums, hence + 1
 
-        # somehow enum items from vulkan 1.1 and extensions end up here as parameters and collide
-        # we need each enum item only once, hence we skip if the item was processed once already
-        scoped_elem_set = set()
+        # some enums elements have been renamed, the old names are aliased with new neames
+        # and the elements added to the end of the enum elemet lists
+        scoped_alias = ''
+        global_alias = ''
 
-        for elem in group_elem.findall( 'enum' ):
+        for elem in enums:
             # Convert the value to an integer and use that to track min/max.
             # Values of form -( number ) are accepted but nothing more complex.
             # Should catch exceptions here for more complex constructs. Not yet.
             ( enum_val, enum_str ) = self.enumToValue( elem, True )
             name = elem.get( 'name' )
 
+            # Extension enumerants are only included if they are required
+            if self.isEnumRequired( elem ):
+                scoped_elem = '\n{0}{1} = {2},'.format( self.indent, name.ljust( max_scoped_len ), enum_str )
+                global_elem = '\nenum {0} = {1}.{2};'.format( name.ljust( max_global_len ), group_name, name )
+                if enum_val != None:
+                    scoped_group += scoped_elem
+                    global_group += global_elem
+                else:
+                    scoped_alias += scoped_elem
+                    global_alias += global_elem
+
             # Extension enumerates are only included if they are requested
             # in addExtensions or match defaultExtensions.
-            if ( elem.get( 'extname' ) is None or
-                re.match( self.genOpts.addExtensions, elem.get( 'extname' )) is not None or
-                self.genOpts.defaultExtensions == elem.get( 'supported' )):
-                scoped_elem = '\n{0}{1} = {2},'.format( self.indent, name.ljust( max_scoped_len ), enum_str )
-                if scoped_elem not in scoped_elem_set:
-                    scoped_elem_set.add( scoped_elem )
-                    scoped_group += scoped_elem
-                    global_group += '\nenum {0} = {1}.{2};'.format( name.ljust( max_global_len ), group_name, name )
+            #if ( elem.get( 'extname' ) is None or
+            #    re.match( self.genOpts.addExtensions, elem.get( 'extname' )) is not None or
+            #    self.genOpts.defaultExtensions == elem.get( 'supported' )):
+            #    scoped_elem = '\n{0}{1} = {2},'.format( self.indent, name.ljust( max_scoped_len ), enum_str )
+            #    if scoped_elem not in scoped_elem_set:
+            #        scoped_elem_set.add( scoped_elem )
+            #        scoped_group += scoped_elem
+            #        global_group += '\nenum {0} = {1}.{2};'.format( name.ljust( max_global_len ), group_name, name )
 
-            if is_enum and elem.get( 'extends' ) is None:
+            if is_enum and enum_val != None and elem.get( 'extends' ) is None:
                 if min_name is None:
-                    min_name  = max_name = name
+                    min_name  = max_name  = name
                     min_value = max_value = enum_val
                 elif enum_val < min_value:
                     min_name  = name
@@ -640,6 +660,9 @@ class DGenerator( OutputGenerator ):
                 elif enum_val > max_value:
                     max_name  = name
                     max_value = enum_val
+
+        global_group += global_alias
+        scoped_group += scoped_alias
 
         # Generate min/max value tokens and a range-padding enum. Need some
         # additional padding to generate correct names...
