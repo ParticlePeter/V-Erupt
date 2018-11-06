@@ -33,6 +33,15 @@ except ImportError as e:
     raise
 
 
+print_debug = False
+
+def align( length, alignment ):
+    if length % alignment == 0:
+        return length
+    return ( length // alignment + 1 ) * alignment
+
+
+
 def getFullType( elem, self = None ):
     elem_typ    = elem.find( 'type' )
     elem_str    = ( elem.text or '' ).lstrip()
@@ -115,8 +124,9 @@ class DGenerator( OutputGenerator ):
 
 
         # open test file here, we might circumvent tests_file_content and write directly to the file
-        #self.tests_file_content = ''
-        #self.tests_file = open( 'test.txt', 'w', encoding = 'utf-8' )
+        if print_debug:
+            self.tests_file_content = ''
+            self.tests_file = open( 'test.txt', 'w', encoding = 'utf-8' )
 
 
         # since v1.1.70 we only get platform names per feature, but not their protect string
@@ -230,7 +240,7 @@ class DGenerator( OutputGenerator ):
             joiner = '\n' + indent
 
             # some of the sections need formating before being merged into one code block
-            # in these cases the  substitute parameter will contain the corresponding term
+            # in these cases the substitute parameter will contain the corresponding term
             for feature in self.feature_order:
                 feature_section = self.feature_content[ feature ][ section ]
                 if feature_section:
@@ -295,7 +305,7 @@ class DGenerator( OutputGenerator ):
 
         # helper function to construct AliasSequnces of extension enums
         def platformProtectionAlias():
-            max_protect_len = len( max( self.platform_protection_order, key=lambda p: len( p )))
+            max_protect_len = len( max( self.platform_protection_order, key = lambda p: len( p )))
             result = ''
             for protection in self.platform_protection_order:
                 result += 'alias {0} = AliasSeq!( {1} );\n'.format( protection[3:].ljust( max_protect_len - 3 ), self.platform_extension_protection[ protection ] )
@@ -374,10 +384,10 @@ class DGenerator( OutputGenerator ):
             write( LIB_LOADER.format( PACKAGE_PREFIX = self.genOpts.packagePrefix, IND = self.indent ), file = d_module )
 
 
-
         # write and close remaining tests data into tests.txt file
-        #write( self.tests_file_content, file = self.tests_file )
-        #self.tests_file.close()
+        if print_debug:
+            write( self.tests_file_content, file = self.tests_file )
+            self.tests_file.close()
 
 
 
@@ -510,11 +520,32 @@ class DGenerator( OutputGenerator ):
         # alias PFN_vkAllocationFunction = void* function( ... )
         elif category == 'funcpointer':
             return_type = typeinfo.elem.text[ 8 : -13 ]
-            params = ''.join( x.replace( 16 * ' ', '', 1 ) for x in islice( typeinfo.elem.itertext(), 2, None ))
+            #params = ''.join( getFullType( x.replace( 16 * ' ', '', 1 )) for x in islice( typeinfo.elem.itertext(), 2, None ))
+            params = ''.join( x for x in islice( typeinfo.elem.itertext(), 2, None ))
+            param_lines = params.splitlines( 1 )    # 1 means include line break
+            trim_space = True
+            for i in range( len( param_lines )):
+                line = param_lines[ i ]
+                if line.startswith( ' ' ):
+                    line = line.strip( ' ' )
+                    if line.startswith( 'const ' ):
+                        line = line.replace( 'const ', 'const( ')   # scope const to next element
+                        line = line.replace( '*', ' )*' )           # end scope before asterisk
+                        line = line.replace( '   ', '', 1 )         # remove three spaces taken by parenthesis and one space before
+                    line = self.indent + line
+                    trim_space = trim_space and 16 * ' ' in line
+                param_lines[ i ] = line
+
+            if trim_space:
+                params = ''.join( line.replace( 16 * ' ', '', 1 ) for line in param_lines )
+            else:
+                params = ''.join( param_lines )
+
+            #self.tests_file_content += params + '\n\n'
             params.replace( ')', ' )' )
 
             if params == ')(void);' : params = ');'
-            else: params = params[ 2: ].replace( ')', '\n)' ).replace( '  )', ' )' )
+            else: params = params[ 2: ].replace( ');', '\n);' ).replace( '  )', ' )' )
 
             if self.sections[ 'funcpointer' ]:
                 self.appendSection( 'funcpointer', '' )
@@ -543,28 +574,35 @@ class DGenerator( OutputGenerator ):
         if self.sections[ 'struct' ]:
            self.appendSection( 'struct', '' )
         self.appendSection( 'struct', '{0} {1} {{'.format( category, name ))
-        targetLen = 0
-        memberTypeName = []
+        target_length = 0
+        member_type_names = []
 
         for member in typeinfo.elem.findall( 'member' ):
-            memberType = getFullType( member ).strip()
-            memberName = member.find( 'name' ).text
+            member_type = getFullType( member ).strip()
+            member_name = member.find( 'name' ).text
 
-            if memberName == 'module':
+            if member_name == 'module':
                 # don't use D keyword
-                memberName = '_module'
+                member_name = '_module'
 
             if member.get( 'values' ):
-                memberName += ' = ' + member.get( 'values' )
+                member_name += ' = ' + member.get( 'values' )
 
 
             # get the maximum string length of all member types
-            memberTypeName.append( ( memberType, memberName ))
-            targetLen = max( targetLen, len( memberType ))
+            member_type_names.append( ( member_type, member_name ) )
+            target_length = max( target_length, len( member_type ) + 2 )
+            #member_type = self.indent + member_type + self.indent
+            #member_type_names.append( ( member_type, member_name ) )
+            #target_length = align( max( target_length, len( member_type ) ), len( self.indent ))
+
+            #self.tests_file_content += '\n'
+            #self.tests_file_content += str( self.indent + member_type + self.indent ) + '\n'
 
         # loop second time and use maximum type string length to offset member names
-        for type_name in memberTypeName:
-            self.appendSection( 'struct', '{2}{0}  {1};'.format( type_name[0].ljust( targetLen ), type_name[1], self.indent ))
+        for type_name in member_type_names:
+            self.appendSection( 'struct', '{2}{0}{1};'.format( type_name[0].ljust( target_length ), type_name[1], self.indent ))
+            #self.appendSection( 'struct', '{0}{1};'.format( type_name[0].ljust( target_length ), type_name[1] ))
         self.appendSection( 'struct', '}' )
 
 
@@ -612,26 +650,28 @@ class DGenerator( OutputGenerator ):
         # core API enumerants, not extension enumerants. This is inferred
         # by looking for 'extends' attributes.
         min_name = None
-        max_global_len = len( max( [ elem.get( 'name' ) for elem in enums ], key=lambda name: len( name )))
-        max_global_len = max( max_global_len, len( name_prefix ) + 13 ) # len( '_BEGIN_RANGE' ) = 12
-        max_scoped_len = max_global_len + 1 # global enums are one char longer than scoped enums, hence + 1
+        max_global_len = len( max( [ elem.get( 'name' ) for elem in enums if self.isEnumRequired( elem ) ], key = lambda name: len( name )))
+        max_global_len = align( max( 5 + max_global_len, len( name_prefix ) + 17 ), 2 * len( self.indent )) # len( 'enum ' ) = 5, len( '_BEGIN_RANGE' ) = 12
+        max_scoped_len = max_global_len # global enums are one char longer than scoped enums, hence + 1
 
         # some enums elements have been renamed, the old names are aliased with new neames
         # and the elements added to the end of the enum elemet lists
         scoped_alias = ''
         global_alias = ''
 
+
         for elem in enums:
-            # Convert the value to an integer and use that to track min/max.
-            # Values of form -( number ) are accepted but nothing more complex.
-            # Should catch exceptions here for more complex constructs. Not yet.
-            ( enum_val, enum_str ) = self.enumToValue( elem, True )
-            name = elem.get( 'name' )
 
             # Extension enumerants are only included if they are required
             if self.isEnumRequired( elem ):
-                scoped_elem = '\n{0}{1} = {2},'.format( self.indent, name.ljust( max_scoped_len ), enum_str )
-                global_elem = '\nenum {0} = {1}.{2};'.format( name.ljust( max_global_len ), group_name, name )
+                # Convert the value to an integer and use that to track min/max.
+                # Values of form -( number ) are accepted but nothing more complex.
+                # Should catch exceptions here for more complex constructs. Not yet.
+                ( enum_val, enum_str ) = self.enumToValue( elem, True )
+                name = elem.get( 'name' )
+
+                scoped_elem = '\n{0} = {1},'.format( ( self.indent + name ).ljust( max_scoped_len ), enum_str )
+                global_elem = '\n{0} = {1}.{2};'.format( ( 'enum ' + name ).ljust( max_global_len ), group_name, name )
                 if enum_val != None:
                     scoped_group += scoped_elem
                     global_group += global_elem
@@ -667,16 +707,16 @@ class DGenerator( OutputGenerator ):
         # Generate min/max value tokens and a range-padding enum. Need some
         # additional padding to generate correct names...
         if is_enum:
-            scoped_group += '\n' + self.indent + ( name_prefix + '_BEGIN_RANGE' + name_suffix ).ljust( max_scoped_len ) + ' = ' + min_name + ','
-            scoped_group += '\n' + self.indent + ( name_prefix + '_END_RANGE'   + name_suffix ).ljust( max_scoped_len ) + ' = ' + max_name + ','
-            scoped_group += '\n' + self.indent + ( name_prefix + '_RANGE_SIZE'  + name_suffix ).ljust( max_scoped_len ) + ' = ' + max_name + ' - ' + min_name + ' + 1,'
+            scoped_group += '\n' + ( self.indent + name_prefix + '_BEGIN_RANGE' + name_suffix ).ljust( max_scoped_len ) + ' = ' + min_name + ','
+            scoped_group += '\n' + ( self.indent + name_prefix + '_END_RANGE'   + name_suffix ).ljust( max_scoped_len ) + ' = ' + max_name + ','
+            scoped_group += '\n' + ( self.indent + name_prefix + '_RANGE_SIZE'  + name_suffix ).ljust( max_scoped_len ) + ' = ' + max_name + ' - ' + min_name + ' + 1,'
 
-            global_group += '\nenum {0} = {1}.{2}{3}{4};'.format( ( name_prefix + '_BEGIN_RANGE' + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_BEGIN_RANGE', name_suffix )
-            global_group += '\nenum {0} = {1}.{2}{3}{4};'.format( ( name_prefix + '_END_RANGE'   + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_END_RANGE'  , name_suffix )
-            global_group += '\nenum {0} = {1}.{2}{3}{4};'.format( ( name_prefix + '_RANGE_SIZE'  + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_RANGE_SIZE' , name_suffix )
+            global_group += '\n{0} = {1}.{2}{3}{4};'.format( ( 'enum ' + name_prefix + '_BEGIN_RANGE' + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_BEGIN_RANGE', name_suffix )
+            global_group += '\n{0} = {1}.{2}{3}{4};'.format( ( 'enum ' + name_prefix + '_END_RANGE'   + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_END_RANGE'  , name_suffix )
+            global_group += '\n{0} = {1}.{2}{3}{4};'.format( ( 'enum ' + name_prefix + '_RANGE_SIZE'  + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_RANGE_SIZE' , name_suffix )
 
-        scoped_group += '\n' + self.indent + ( name_prefix + '_MAX_ENUM' + name_suffix ).ljust( max_scoped_len ) + ' = 0x7FFFFFFF\n}'
-        global_group += '\nenum {0} = {1}.{2}{3}{4};'.format( ( name_prefix + '_MAX_ENUM' + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_MAX_ENUM' , name_suffix )
+        scoped_group += '\n' + ( self.indent + name_prefix + '_MAX_ENUM' + name_suffix ).ljust( max_scoped_len ) + ' = 0x7FFFFFFF\n}'
+        global_group += '\n{0} = {1}.{2}{3}{4};'.format( ( 'enum ' + name_prefix + '_MAX_ENUM' + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_MAX_ENUM' , name_suffix )
 
 
         if is_enum:
