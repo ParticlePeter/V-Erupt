@@ -582,8 +582,12 @@ class DGenerator( OutputGenerator ):
             member_name = member.find( 'name' ).text
 
             if member_name == 'module':
-                # don't use D keyword
+                # don't use D keyword module
                 member_name = '_module'
+
+            if member_name == 'scope':
+                # don't use D keyword scope
+                member_name = '_scope'
 
             if member.get( 'values' ):
                 member_name += ' = ' + member.get( 'values' )
