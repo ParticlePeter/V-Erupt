@@ -21,6 +21,7 @@ from templates.dlang.platform_extensions import *
 
 
 if len( sys.argv ) > 2 and not sys.argv[ 2 ].startswith( '--' ):
+    sys.path.append( sys.argv[ 1 ] + '/scripts/' )
     sys.path.append( sys.argv[ 1 ] + '/xml/' )
 
 
@@ -183,7 +184,7 @@ class DGenerator( OutputGenerator ):
         # ----------------- #
 
         # loop through all functions of all features and align their names
-        # in the outer loop are tree categories, each category has a different per feature count of functions items
+        # in the outer loop are three categories, each category has a different per feature count of function items
         # we store the function name length in only one function item, it can be reused with the other items in the same category
         # the items which store the name length are tuples of ( func item string, func name length )
         # the others are simply func item strings
@@ -319,12 +320,12 @@ class DGenerator( OutputGenerator ):
             open_format  = ''
             close_format = ''
 
-            # some sections include additional format strings which we must with escape with these
+            # some sections include additional format strings which we must escape with these
             if Instance_or_Device:
                 open_format  = '{'
                 close_format = '}'
 
-            # We want to merge of Type_Definitions and Func_Type_Aliases
+            # We want to merge Type_Definitions and Func_Type_Aliases
             # hence we wrap each section parameter into a list
 
             joiner = '\n' + indent + self.indent
@@ -370,7 +371,6 @@ class DGenerator( OutputGenerator ):
             DISPATCH_CONVENIENCE_FUNCS  = platformExtensionSection( [ 'Conven_Funcs'      ] , 3 * self.indent, ' : dispatch device convenience member functions' ),
             DISPATCH_FUNC_DECLARATIONS  = platformExtensionSection( [ 'Func_Declarations' ] , 3 * self.indent, ' : dispatch device member function pointer decelerations'  )
             )
-
 
         with open( path.join( self.genOpts.directory, 'platform_extensions.d' ), 'w', encoding = 'utf-8' ) as d_module:
             write( file_content, file = d_module )
@@ -470,12 +470,12 @@ class DGenerator( OutputGenerator ):
         OutputGenerator.endFeature( self )
 
 
-    # Append a definition to the specified section
+    # append a definition to the specified section
     def appendSection( self, section, text ):
         self.sections[ section ].append( text )
 
 
-
+    # categories
     def genType( self, typeinfo, name, alias ):
         super().genType( typeinfo, name, alias )
 
@@ -605,7 +605,7 @@ class DGenerator( OutputGenerator ):
 
         # loop second time and use maximum type string length to offset member names
         for type_name in member_type_names:
-            self.appendSection( 'struct', '{2}{0}{1};'.format( type_name[0].ljust( target_length ), type_name[1], self.indent ))
+            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, type_name[0].ljust( target_length ), type_name[1] ))
             #self.appendSection( 'struct', '{0}{1};'.format( type_name[0].ljust( target_length ), type_name[1] ))
         self.appendSection( 'struct', '}' )
 
@@ -636,10 +636,10 @@ class DGenerator( OutputGenerator ):
 
 
         # group enums by their name
-        scoped_group = 'enum ' + group_name + ' {'
+        scoped_group = [ 'enum ' + group_name + ' {' ]
 
         # add grouped enums to global scope
-        global_group = ''
+        global_group = [ '' ]
 
         # Get a list of nested 'enum' tags.
         enums = group_elem.findall( 'enum' )
@@ -660,8 +660,8 @@ class DGenerator( OutputGenerator ):
 
         # some enums elements have been renamed, the old names are aliased with new neames
         # and the elements added to the end of the enum elemet lists
-        scoped_alias = ''
-        global_alias = ''
+        scoped_alias = []
+        global_alias = []
 
 
         for elem in enums:
@@ -674,14 +674,14 @@ class DGenerator( OutputGenerator ):
                 ( enum_val, enum_str ) = self.enumToValue( elem, True )
                 name = elem.get( 'name' )
 
-                scoped_elem = '\n{0} = {1},'.format( ( self.indent + name ).ljust( max_scoped_len ), enum_str )
-                global_elem = '\n{0} = {1}.{2};'.format( ( 'enum ' + name ).ljust( max_global_len ), group_name, name )
+                scoped_elem = '{0} = {1},'.format( ( self.indent + name ).ljust( max_scoped_len ), enum_str )
+                global_elem = '{0} = {1}.{2};'.format( ( 'enum ' + name ).ljust( max_global_len ), group_name, name )
                 if enum_val != None:
-                    scoped_group += scoped_elem
-                    global_group += global_elem
+                    scoped_group.append( scoped_elem )
+                    global_group.append( global_elem )
                 else:
-                    scoped_alias += scoped_elem
-                    global_alias += global_elem
+                    scoped_alias.append( scoped_elem )
+                    global_alias.append( global_elem )
 
             # Extension enumerates are only included if they are requested
             # in addExtensions or match defaultExtensions.
@@ -705,34 +705,29 @@ class DGenerator( OutputGenerator ):
                     max_name  = name
                     max_value = enum_val
 
-        global_group += global_alias
-        scoped_group += scoped_alias
+        if global_alias: global_group += global_alias
+        if scoped_alias: scoped_group += scoped_alias
 
         # Generate min/max value tokens and a range-padding enum. Need some
         # additional padding to generate correct names...
         if is_enum:
-            scoped_group += '\n' + ( self.indent + name_prefix + '_BEGIN_RANGE' + name_suffix ).ljust( max_scoped_len ) + ' = ' + min_name + ','
-            scoped_group += '\n' + ( self.indent + name_prefix + '_END_RANGE'   + name_suffix ).ljust( max_scoped_len ) + ' = ' + max_name + ','
-            scoped_group += '\n' + ( self.indent + name_prefix + '_RANGE_SIZE'  + name_suffix ).ljust( max_scoped_len ) + ' = ' + max_name + ' - ' + min_name + ' + 1,'
+            scoped_group.append( '{0} = {1},'.format(           '{0}{1}{2}{3}'.format( self.indent, name_prefix, '_BEGIN_RANGE', name_suffix ).ljust( max_scoped_len ), min_name ))
+            scoped_group.append( '{0} = {1},'.format(           '{0}{1}{2}{3}'.format( self.indent, name_prefix, '_END_RANGE',   name_suffix ).ljust( max_scoped_len ), max_name ))
+            scoped_group.append( '{0} = {1} - {2} + 1,'.format( '{0}{1}{2}{3}'.format( self.indent, name_prefix, '_RANGE_SIZE',  name_suffix ).ljust( max_scoped_len ), max_name, min_name ))
 
-            global_group += '\n{0} = {1}.{2}{3}{4};'.format( ( 'enum ' + name_prefix + '_BEGIN_RANGE' + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_BEGIN_RANGE', name_suffix )
-            global_group += '\n{0} = {1}.{2}{3}{4};'.format( ( 'enum ' + name_prefix + '_END_RANGE'   + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_END_RANGE'  , name_suffix )
-            global_group += '\n{0} = {1}.{2}{3}{4};'.format( ( 'enum ' + name_prefix + '_RANGE_SIZE'  + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_RANGE_SIZE' , name_suffix )
+            global_group.append( '{0} = {1}.{2}{3}{4};'.format(( 'enum ' + name_prefix + '_BEGIN_RANGE' + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_BEGIN_RANGE', name_suffix ))
+            global_group.append( '{0} = {1}.{2}{3}{4};'.format(( 'enum ' + name_prefix + '_END_RANGE'   + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_END_RANGE'  , name_suffix ))
+            global_group.append( '{0} = {1}.{2}{3}{4};'.format(( 'enum ' + name_prefix + '_RANGE_SIZE'  + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_RANGE_SIZE' , name_suffix ))
 
-        scoped_group += '\n' + ( self.indent + name_prefix + '_MAX_ENUM' + name_suffix ).ljust( max_scoped_len ) + ' = 0x7FFFFFFF\n}'
-        global_group += '\n{0} = {1}.{2}{3}{4};'.format( ( 'enum ' + name_prefix + '_MAX_ENUM' + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_MAX_ENUM' , name_suffix )
+        scoped_group.append(( self.indent + name_prefix + '_MAX_ENUM' + name_suffix ).ljust( max_scoped_len ) + ' = 0x7FFFFFFF' )
+        scoped_group.append( '}' )
+        global_group.append( '{0} = {1}.{2}{3}{4};'.format( ( 'enum ' + name_prefix + '_MAX_ENUM' + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_MAX_ENUM' , name_suffix ))
 
 
-        if is_enum:
-            if self.sections[ 'group' ]:
-                self.appendSection( 'group', '' )       # this empty string will be terminated with '\n' at the join operation
-            self.appendSection( 'group', scoped_group + global_group )
-
-        else:
-            if self.sections[ 'bitmask' ]:
-                self.appendSection( 'bitmask', '' )     # this empty string will be terminated with '\n' at the join operation
-            self.appendSection( 'bitmask', scoped_group + global_group )
-
+        section = 'group' if is_enum else 'bitmask'
+        if self.sections[ section ]:
+            self.appendSection( section, '' )                       # this empty string will be terminated with '\n' at the join operation
+        self.sections[ section ] += scoped_group + global_group     # concatenating three lists
 
 
     # enum VK_TRUE = 1; enum VK_FALSE = 0; enum _SPEC_VERSION = ; enum _EXTENSION_NAME = ;
@@ -763,6 +758,7 @@ class DGenerator( OutputGenerator ):
         # store get name length and store the maximum function name length
         name_len = len( name )
         self.max_func_name_len = max( self.max_func_name_len, name_len )
+        #self.tests_file_content += 'max: {0}, len: {1}, name: {2}\n'.format( self.max_func_name_len, name_len, name )
 
 
         # get params of this function, we require the first param type
