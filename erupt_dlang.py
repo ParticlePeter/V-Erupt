@@ -654,7 +654,8 @@ class DGenerator( OutputGenerator ):
         # core API enumerants, not extension enumerants. This is inferred
         # by looking for 'extends' attributes.
         min_name = None
-        max_global_len = len( max( [ elem.get( 'name' ) for elem in enums if self.isEnumRequired( elem ) ], key = lambda name: len( name )))
+        required_enum_names = [ elem.get( 'name' ) for elem in enums if self.isEnumRequired( elem ) ]
+        max_global_len = len( max( required_enum_names, key = lambda name: len( name ))) if required_enum_names else 0
         max_global_len = align( max( 5 + max_global_len, len( name_prefix ) + 17 ), 2 * len( self.indent )) # len( 'enum ' ) = 5, len( '_BEGIN_RANGE' ) = 12
         max_scoped_len = max_global_len # global enums are one char longer than scoped enums, hence + 1
 
