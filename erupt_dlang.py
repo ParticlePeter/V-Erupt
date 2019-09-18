@@ -34,6 +34,7 @@ except ImportError as e:
     raise
 
 
+# set this variable to True and then fill self.tests_file_content with debug data
 print_debug = False
 
 def align( length, alignment ):
@@ -653,8 +654,11 @@ class DGenerator( OutputGenerator ):
         # maximum numeric values, if they can be determined; but only for
         # core API enumerants, not extension enumerants. This is inferred
         # by looking for 'extends' attributes.
-        min_name = None
+        #
+        # vulkan-docs-v1.1.118 introduced an empty enum group (VkPipelineCompilerControlFlagBitsAMD)
+        # in this case required_enum_names will be empty and we simply exit this method, but only for enums.
         required_enum_names = [ elem.get( 'name' ) for elem in enums if self.isEnumRequired( elem ) ]
+        if is_enum and not required_enum_names: return
         max_global_len = len( max( required_enum_names, key = lambda name: len( name ))) if required_enum_names else 0
         max_global_len = align( max( 5 + max_global_len, len( name_prefix ) + 17 ), 2 * len( self.indent )) # len( 'enum ' ) = 5, len( '_BEGIN_RANGE' ) = 12
         max_scoped_len = max_global_len # global enums are one char longer than scoped enums, hence + 1
@@ -664,6 +668,8 @@ class DGenerator( OutputGenerator ):
         scoped_alias = []
         global_alias = []
 
+        # we store the value range of enums as min_name and max_name
+        min_name = None
 
         for elem in enums:
 
