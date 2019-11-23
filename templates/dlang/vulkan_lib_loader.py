@@ -1,6 +1,6 @@
 LIB_LOADER = """\
 /**
- * Dlang vulkan lib loader retrieving vkGetInstanceProcAddr for windows and posix systems
+ * Dlang vulkan lib loader retrieving vkGetInstanceProcAddr for windows, macos and posix systems
  *
  * Copyright: Copyright 2015-2016 The Khronos Group Inc.; Copyright 2016 Alex Parrill, Peter Particle.
  * License:   $(https://opensource.org/licenses/MIT, MIT License).
@@ -28,7 +28,7 @@ private:
 }}
 
 
-/// private helper functions for posix platforms
+/// private helper functions for android platform
 else version( Android ) {{
 private:
 {IND}import core.sys.posix.dlfcn : dlerror, dlopen, dlclose, dlsym, RTLD_NOW, RTLD_LOCAL;
@@ -38,6 +38,20 @@ private:
 {IND}auto loadSym()  {{ return cast( PFN_vkGetInstanceProcAddr )dlsym( vulkan_lib, "vkGetInstanceProcAddr" ); }}
 {IND}void logLibError( FILE* log_stream, const( char )* message ) {{
 {IND}{IND}fprintf( log_stream, "%slibvulkan.so.1! Error: %s\\n", message, dlerror );
+{IND}}}
+}}
+
+
+/// private helper functions for macos platforms
+else version( OSX ) {{
+private:
+{IND}import core.sys.posix.dlfcn : dlerror, dlopen, dlclose, dlsym, RTLD_LAZY, RTLD_LOCAL;
+{IND}void*           vulkan_lib  = null;
+{IND}auto loadLib()  {{ return dlopen( "libvulkan.1.dylib", RTLD_LAZY | RTLD_LOCAL ); }}
+{IND}auto freeLib()  {{ return dlclose( vulkan_lib ) == 0; }}
+{IND}auto loadSym()  {{ return cast( PFN_vkGetInstanceProcAddr )dlsym( vulkan_lib, "vkGetInstanceProcAddr" ); }}
+{IND}void logLibError( FILE* log_stream, const( char )* message ) {{
+{IND}{IND}fprintf( log_stream, "%slibvulkan.1.dylib! Error: %s\\n", message, dlerror );
 {IND}}}
 }}
 
