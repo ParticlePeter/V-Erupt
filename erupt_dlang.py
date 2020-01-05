@@ -590,6 +590,10 @@ class DGenerator( OutputGenerator ):
                 # don't use D keyword scope
                 member_name = '_scope'
 
+            if member_name == 'version':
+                # don't use D keyword version
+                member_name = '_version'
+
             if member.get( 'values' ):
                 member_name += ' = ' + member.get( 'values' )
 
