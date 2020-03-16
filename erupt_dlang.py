@@ -28,6 +28,7 @@ if len( sys.argv ) > 2 and not sys.argv[ 2 ].startswith( '--' ):
 try:
     from reg import *
     from generator import OutputGenerator, GeneratorOptions, write
+    from vkconventions import VulkanConventions
 except ImportError as e:
     print( 'Could not import Vulkan generator; please ensure that the first argument points to Vulkan-Docs directory', file = sys.stderr )
     print( '-----', file = sys.stderr )
@@ -935,6 +936,7 @@ if __name__ == '__main__':
     reg.setGenerator( gen )
     reg.apiGen(
         DGeneratorOptions(
+        conventions         = VulkanConventions(),
         directory           = args.outputDirectory,
         apiname             = 'vulkan',
         profile             = None,
