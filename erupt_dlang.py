@@ -576,43 +576,83 @@ class DGenerator( OutputGenerator ):
         if self.sections[ 'struct' ]:
            self.appendSection( 'struct', '' )
         self.appendSection( 'struct', '{0} {1} {{'.format( category, name ))
-        target_length = 0
-        member_type_names = []
+
+        member_type_length  = 0
+        member_name_length  = 0
+        member_type_names   = []
+        member_bitfield     = []
+
+        has_member_scope    = False
+        has_member_module   = False
+        has_member_version  = False
+
 
         for member in typeinfo.elem.findall( 'member' ):
-            member_type = getFullType( member ).strip()
             member_name = member.find( 'name' ).text
 
+            # don't use D keyword module
             if member_name == 'module':
-                # don't use D keyword module
-                member_name = '_module'
+                member_name = 'Module'
+                has_member_module = True
 
+            # don't use D keyword scope
             if member_name == 'scope':
-                # don't use D keyword scope
-                member_name = '_scope'
+                member_name = 'Scope'
+                has_member_scope = True
 
+            # don't use D keyword version
             if member_name == 'version':
-                # don't use D keyword version
-                member_name = '_version'
+                member_name = 'Version'
+                has_member_version = True
 
+            # member default values, not sure if this is supported for bitfields. If not move this into next else clause
             if member.get( 'values' ):
                 member_name += ' = ' + member.get( 'values' )
 
 
-            # get the maximum string length of all member types
-            member_type_names.append( ( member_type, member_name ) )
-            target_length = max( target_length, len( member_type ) + 2 )
-            #member_type = self.indent + member_type + self.indent
-            #member_type_names.append( ( member_type, member_name ) )
-            #target_length = align( max( target_length, len( member_type ) ), len( self.indent ))
+            # v1.2.135 introduced a struct (VkAccelerationStructureInstanceKHR) with bitfields
+            # DLang bitfields are implemented via std.bitmanip.bitfields, we need extra work to parse the xml data
+            member_type = getFullType( member ).strip()
+            member_type_bitcount = member_type.split(':')
 
-            #self.tests_file_content += '\n'
-            #self.tests_file_content += str( self.indent + member_type + self.indent ) + '\n'
+            if len( member_type_bitcount ) == 2:    # bitfields
+                member_bitfield.append( ( member_type_bitcount[0] + ',', '"{0}",'.format( member_name ), member_type_bitcount[1] ))
+                member_type_length = max( member_type_length, len( member_type ) + len( self.indent ))
+                member_name_length = max( member_name_length, len( member_name ) + 4 )
+            else:                                   # non-bitfield processing
+                if member_bitfield:                     # store code chunk
+                    member_type_names.append( member_bitfield ) # store all bitfields in a list of tuples
+                    member_bitfield = []                        # now we can scan for and process another bitfield in this struct
+
+                # get the maximum string length of all member types
+                member_type_names.append( ( member_type, member_name ) )
+                member_type_length = max( member_type_length, len( member_type ) + 2 )
+                #member_type_length = align( max( member_type_length, len( member_type )), len( self.indent ))
+
 
         # loop second time and use maximum type string length to offset member names
         for type_name in member_type_names:
-            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, type_name[0].ljust( target_length ), type_name[1] ))
-            #self.appendSection( 'struct', '{0}{1};'.format( type_name[0].ljust( target_length ), type_name[1] ))
+
+            if type( type_name ) is tuple:  # normal struct members
+                self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, type_name[0].ljust( member_type_length ), type_name[1] ))
+            else:                           # bitfields
+                self.appendSection( 'struct', '{0}mixin( bitfields!('.format( self.indent ))
+                for ( t, n, b ) in type_name:   # t(ype), n(ame), b(itfield)
+                    self.appendSection( 'struct', '{0}{1}{2}{3},'.format( 2 * self.indent, t.ljust( member_type_length - len( self.indent )), n.ljust( member_name_length ), b ))
+                self.appendSection( 'struct', '{0}));'.format( self.indent ))
+
+        if has_member_scope:
+            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), 'scope_ = Scope' ))
+            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), '_scope = Scope' ))
+
+        if has_member_module:
+            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), 'module_ = Module' ))
+            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), '_module = Module' ))
+
+        if has_member_version:
+            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), 'version_ = Version' ))
+            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), '_version = Version' ))
+
         self.appendSection( 'struct', '}' )
 
 
@@ -811,8 +851,14 @@ class DGenerator( OutputGenerator ):
         else:                       do_return = 'return '
 
 
+        # helper to catch and replace parameter names which are DLnag keywords (currently only version)
+        def replaceKeyword( name ):
+            if name == 'version': return 'Version'
+            else: return name
+
+
         # a parameter consist of a type and a name, here we merge all parameters into a list
-        joined_params = ', '.join( getFullType( param ).strip() + ' ' + param.find( 'name' ).text for param in params )
+        joined_params = ', '.join( getFullType( param ).strip() + ' ' + replaceKeyword( param.find( 'name' ).text ) for param in params )
 
 
         # construct function pointer prototypes, declarations and keep track of each function name length for aligning purpose
@@ -855,8 +901,8 @@ class DGenerator( OutputGenerator ):
             # VkDevice and VkAllocationCallbacks are both supplied by the DispatchDeveice
             joined_args = ''
             if len( params[1:] ):
-                joined_args = ', ' + ', '.join( param.find( 'name' ).text for param in params[1:] )
-            joined_params = ', '.join( getFullType( param ).strip() + ' ' + param.find( 'name' ).text
+                joined_args = ', ' + ', '.join( replaceKeyword( param.find( 'name' ).text ) for param in params[1:] )
+            joined_params = ', '.join( getFullType( param ).strip() + ' ' + replaceKeyword( param.find( 'name' ).text )
                 for param in params[1:] if not getFullType( param ).strip().startswith( 'const( VkAllocationCallbacks )*' ))
 
             # create VkDevice convenience functions for DispatchDevice

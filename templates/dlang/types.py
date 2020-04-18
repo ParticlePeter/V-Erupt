@@ -8,6 +8,8 @@ TYPES = """\
  */
 module {PACKAGE_PREFIX}.types;
 
+import std.bitmanip : bitfields;
+
 nothrow @nogc:
 
 
