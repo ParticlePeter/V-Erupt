@@ -509,7 +509,8 @@ class DGenerator( OutputGenerator ):
 
         # alias VkFlags = uint32_t;
         if category == 'basetype':
-            self.appendSection( 'basetype', 'alias {0} = {1};'.format( name, typeinfo.elem.find( 'type' ).text ))
+            #self.appendSection( 'basetype', 'alias {0} = {1};'.format( name, typeinfo.elem.find( 'type' ).text ))  # .find( 'type' ) does not work any more, why ???
+            self.appendSection( 'basetype', 'alias {0} = {1};'.format( name, typeinfo.elem[0].text ))
 
         # mixin( VK_DEFINE_HANDLE!q{VkInstance} );
         elif category == 'handle':
@@ -954,6 +955,7 @@ if __name__ == '__main__':
 
     # vulkan-docs options, not fully supported yet, maybe never
     parser.add_argument('-defaultExtensions',   action='store',         default='vulkan',   help='Specify a single class of extensions to add to targets')
+#   parser.add_argument( '-registry',           action='store',         default='vk.xml',   help='Use specified registry file instead of vk.xml' )
 #   parser.add_argument('-extension',           action='append',        default=[],         help='Specify an extension or extensions to add to targets')
 #   parser.add_argument('-removeExtensions',    action='append',        default=[],         help='Specify an extension or extensions to remove from targets')
 #   parser.add_argument('-emitExtensions',      action='append',        default=[],         help='Specify an extension or extensions to emit in targets')
@@ -974,14 +976,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-
-
-    gen = DGenerator()
-    reg = Registry()
-    reg.loadFile( vkxml )
-    reg.setGenerator( gen )
-    reg.apiGen(
-        DGeneratorOptions(
+    options = DGeneratorOptions(
         conventions         = VulkanConventions(),
         directory           = args.outputDirectory,
         apiname             = 'vulkan',
@@ -1007,4 +1002,8 @@ if __name__ == '__main__':
         #apientry          = 'VKAPI_CALL ',
         #apientryp         = 'VKAPI_PTR *',
         #alignFuncParam    = 48)
-    ))
+    )
+
+    reg = Registry( DGenerator(), options )
+    reg.loadElementTree( etree.parse( vkxml ))
+    reg.apiGen()
