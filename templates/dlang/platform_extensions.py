@@ -55,9 +55,18 @@ mixin template Platform_Extensions( extensions... ) {{
 {IND}{IND}}}
 {IND}}}
 
-{IND}// compose a new loadInstanceLevelFunctions function out of
-{IND}// unextended original function and additional function pointers from extensions
-{IND}void loadInstanceLevelFunctions( VkInstance instance ) {{
+{IND}// workaround for not being able to mixin two overloads with the same symbol name
+{IND}alias loadDeviceLevelFunctionsExt = loadDeviceLevelFunctionsExtI;
+{IND}alias loadDeviceLevelFunctionsExt = loadDeviceLevelFunctionsExtD;
+
+{IND}// backwards compatibility aliases
+{IND}alias loadInstanceLevelFunctions = loadInstanceLevelFunctionsExt;
+{IND}alias loadDeviceLevelFunctions = loadDeviceLevelFunctionsExt;
+{IND}alias DispatchDevice = DispatchDeviceExt;
+
+{IND}// compose loadInstanceLevelFunctionsExt function out of unextended
+{IND}// loadInstanceLevelFunctions and additional function pointers from extensions
+{IND}void loadInstanceLevelFunctionsExt( VkInstance instance ) {{
 
 {IND}{IND}// first load all non platform related function pointers from implementation
 {IND}{IND}{PACKAGE_PREFIX}.functions.loadInstanceLevelFunctions( instance );
@@ -69,9 +78,10 @@ mixin template Platform_Extensions( extensions... ) {{
 {IND}{IND}}}
 {IND}}}
 
-{IND}// compose a new loadDeviceLevelFunctions function out of
-{IND}// unextended original function and additional function pointers from extensions
-{IND}void loadDeviceLevelFunctions( VkInstance instance ) {{
+{IND}// compose instance based loadDeviceLevelFunctionsExtI function out of unextended
+{IND}// loadDeviceLevelFunctions and additional function pointers from extensions
+{IND}// suffix I is required, as we cannot mixin mixin two overloads with the same symbol name (any more!)
+{IND}void loadDeviceLevelFunctionsExtI( VkInstance instance ) {{
 
 {IND}{IND}// first load all non platform related function pointers from implementation
 {IND}{IND}{PACKAGE_PREFIX}.functions.loadDeviceLevelFunctions( instance );
@@ -83,12 +93,13 @@ mixin template Platform_Extensions( extensions... ) {{
 {IND}{IND}}}
 {IND}}}
 
-{IND}// compose a new device based loadDeviceLevelFunctions function
-{IND}// out of unextended original and additional function pointers from extensions
-{IND}void loadDeviceLevelFunctions( VkDevice device ) {{
+{IND}// compose device based loadDeviceLevelFunctionsExtD function out of unextended
+{IND}// loadDeviceLevelFunctions and additional function pointers from extensions
+{IND}// suffix D is required as, we cannot mixin mixin two overloads with the same symbol name (any more!)
+{IND}void loadDeviceLevelFunctionsExtD( VkDevice device ) {{
 
 {IND}{IND}// first load all non platform related function pointers from implementation
-{IND}{IND}{PACKAGE_PREFIX}.functions.loadDeviceLevelFunctions( device );
+{IND}{IND}loadDeviceLevelFunctions( device );
 
 {IND}{IND}// 4. loop through alias sequence and mixin corresponding
 {IND}{IND}// device based device level function pointer definitions
@@ -97,23 +108,26 @@ mixin template Platform_Extensions( extensions... ) {{
 {IND}{IND}}}
 {IND}}}
 
-{IND}// compose a new dispatch device out of unextended original dispatch device with
-{IND}// extended device based loadDeviceLevelFunctions member function,
+{IND}// compose extended dispatch device out of unextended original dispatch device with
+{IND}// extended, device based loadDeviceLevelFunctionsExt member function,
 {IND}// device and command buffer based function pointer decelerations
-{IND}struct DispatchDevice {{
+{IND}struct DispatchDeviceExt {{
 
 {IND}{IND}// use unextended dispatch device from module {PACKAGE_PREFIX}.functions as member and alias this
 {IND}{IND}{PACKAGE_PREFIX}.dispatch_device.DispatchDevice commonDispatchDevice;
 {IND}{IND}alias commonDispatchDevice this;
 
-{IND}{IND}// Constructor forwards parameter 'device' to 'this.loadDeviceLevelFunctions'
+{IND}{IND}// Constructor forwards parameter 'device' to 'loadDeviceLevelFunctionsExt'
 {IND}{IND}this( VkDevice device ) {{
-{IND}{IND}{IND}this.loadDeviceLevelFunctions( device );
+{IND}{IND}{IND}loadDeviceLevelFunctionsExt( device );
 {IND}{IND}}}
 
-{IND}{IND}// compose a new device based loadDeviceLevelFunctions member function
-{IND}{IND}// out of unextended original and additional member function pointers from extensions
-{IND}{IND}void loadDeviceLevelFunctions( VkDevice device ) {{
+{IND}{IND}// backwards compatibility alias
+{IND}{IND}alias loadDeviceLevelFunctions = loadDeviceLevelFunctionsExt;
+
+{IND}{IND}// compose device based loadDeviceLevelFunctionsExt member function out of unextended
+{IND}{IND}// loadDeviceLevelFunctions and additional member function pointers from extensions
+{IND}{IND}void loadDeviceLevelFunctionsExt( VkDevice device ) {{
 
 {IND}{IND}{IND}// first load all non platform related member function pointers of wrapped commonDispatchDevice
 {IND}{IND}{IND}commonDispatchDevice.loadDeviceLevelFunctions( device );
