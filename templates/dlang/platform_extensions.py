@@ -99,7 +99,7 @@ mixin template Platform_Extensions( extensions... ) {{
 {IND}void loadDeviceLevelFunctionsExtD( VkDevice device ) {{
 
 {IND}{IND}// first load all non platform related function pointers from implementation
-{IND}{IND}loadDeviceLevelFunctions( device );
+{IND}{IND}erupted.functions.loadDeviceLevelFunctions( device );
 
 {IND}{IND}// 4. loop through alias sequence and mixin corresponding
 {IND}{IND}// device based device level function pointer definitions
