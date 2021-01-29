@@ -114,7 +114,7 @@ bool freeVulkanLib( FILE* log_stream = stderr ) {{
 {IND}if( !vulkan_lib ) {{
 {IND}{IND}fprintf( log_stream, "Cannot free vulkan lib as it is not loaded!" );
 {IND}{IND}return false;
-{IND}}} else if( freeLib ) {{
+{IND}}} else if( !freeLib() ) {{
 {IND}{IND}logLibError( log_stream, "Could not unload " );
 {IND}{IND}return false;
 {IND}}} else {{
