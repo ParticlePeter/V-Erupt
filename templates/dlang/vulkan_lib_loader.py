@@ -20,7 +20,7 @@ private:
 {IND}import core.sys.windows.windows;
 {IND}HMODULE         vulkan_lib  = null;
 {IND}auto loadLib()  {{ return LoadLibrary( "vulkan-1.dll" ); }}
-{IND}auto freeLib()  {{ return FreeLibrary( vulkan_lib ) != 0; }}
+{IND}bool freeLib()  {{ return FreeLibrary( vulkan_lib ) != 0; }}
 {IND}auto loadSym()  {{ return cast( PFN_vkGetInstanceProcAddr )GetProcAddress( vulkan_lib, "vkGetInstanceProcAddr" ); }}
 {IND}void logLibError( FILE* log_stream, const( char )* message ) {{
 {IND}{IND}fprintf( log_stream, "%svulkan-1.dll! Error code: 0x%x\\n", message, GetLastError());
@@ -34,7 +34,7 @@ private:
 {IND}import core.sys.posix.dlfcn : dlerror, dlopen, dlclose, dlsym, RTLD_NOW, RTLD_LOCAL;
 {IND}void*           vulkan_lib  = null;
 {IND}auto loadLib()  {{ return dlopen( "libvulkan.so", RTLD_NOW | RTLD_LOCAL ); }}
-{IND}auto freeLib()  {{ return dlclose( vulkan_lib ) == 0; }}
+{IND}bool freeLib()  {{ return dlclose( vulkan_lib ) == 0; }}
 {IND}auto loadSym()  {{ return cast( PFN_vkGetInstanceProcAddr )dlsym( vulkan_lib, "vkGetInstanceProcAddr" ); }}
 {IND}void logLibError( FILE* log_stream, const( char )* message ) {{
 {IND}{IND}fprintf( log_stream, "%slibvulkan.so.1! Error: %s\\n", message, dlerror );
@@ -48,7 +48,7 @@ private:
 {IND}import core.sys.posix.dlfcn : dlerror, dlopen, dlclose, dlsym, RTLD_LAZY, RTLD_LOCAL;
 {IND}void*           vulkan_lib  = null;
 {IND}auto loadLib()  {{ return dlopen( "libvulkan.1.dylib", RTLD_LAZY | RTLD_LOCAL ); }}
-{IND}auto freeLib()  {{ return dlclose( vulkan_lib ) == 0; }}
+{IND}bool freeLib()  {{ return dlclose( vulkan_lib ) == 0; }}
 {IND}auto loadSym()  {{ return cast( PFN_vkGetInstanceProcAddr )dlsym( vulkan_lib, "vkGetInstanceProcAddr" ); }}
 {IND}void logLibError( FILE* log_stream, const( char )* message ) {{
 {IND}{IND}fprintf( log_stream, "%slibvulkan.1.dylib! Error: %s\\n", message, dlerror );
@@ -62,7 +62,7 @@ private:
 {IND}import core.sys.posix.dlfcn : dlerror, dlopen, dlclose, dlsym, RTLD_LAZY, RTLD_LOCAL;
 {IND}void*           vulkan_lib  = null;
 {IND}auto loadLib()  {{ return dlopen( "libvulkan.so.1", RTLD_LAZY | RTLD_LOCAL ); }}
-{IND}auto freeLib()  {{ return dlclose( vulkan_lib ) == 0; }}
+{IND}bool freeLib()  {{ return dlclose( vulkan_lib ) == 0; }}
 {IND}auto loadSym()  {{ return cast( PFN_vkGetInstanceProcAddr )dlsym( vulkan_lib, "vkGetInstanceProcAddr" ); }}
 {IND}void logLibError( FILE* log_stream, const( char )* message ) {{
 {IND}{IND}fprintf( log_stream, "%slibvulkan.so.1! Error: %s\\n", message, dlerror );
