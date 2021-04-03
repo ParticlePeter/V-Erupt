@@ -10,6 +10,7 @@ import re
 import os
 from os import path
 from itertools import islice
+from copy import deepcopy
 
 from templates.dlang.types import *
 from templates.dlang.package import *
@@ -37,6 +38,53 @@ except ImportError as e:
 
 # set this variable to True and then fill self.tests_file_content with debug data
 print_debug = False
+
+
+# print contents of an elem (sub)tree to file, to examine its contenet
+def printTree( self, elem ):
+
+    # test if an element has children: if elem:
+    current = deepcopy( elem )
+    ancestors = []
+    depth = 0
+    print_current = True
+
+    self.tests_file_content += '\n'
+    while True:
+
+        if print_current:   # print data of current
+            indent = depth * '  '
+            self.tests_file_content += indent + '------\n'
+            if current.tag: self.tests_file_content += '{0}tag  : {1}\n'.format( indent, current.tag )
+            if current.text: self.tests_file_content += '{0}text : {1}\n'.format( indent, current.text )
+            if current.attrib: self.tests_file_content += '{0}attr : {1}\n'.format( indent, ', '.join( '{0} : {1}'.format( k, v ) for k, v in current.attrib.items()))
+            if current.tail: self.tests_file_content += '{0}tail : {1}\n'.format( indent, current.tail )
+
+        if current: # has children
+            if not ancestors or ( ancestors and ancestors[ -1 ] != current ): # not last in list
+                ancestors.append( current )
+
+            current = current[ 0 ]  # set first child as current
+            print_current = True
+            depth += 1
+
+        else:   # current has no children
+            if not ancestors:    # or ( len( children ) == 1 ) && children[ -1 ] == current:
+                break
+
+            leaf = current
+            if ancestors[ -1 ] == current:   # last in list
+                ancestors.pop()
+
+            if ancestors:
+                current = ancestors[ -1 ]    # set parent as current (last in list)
+                current.remove( leaf )
+                print_current = False
+                depth -= 1
+
+            else:
+                break
+
 
 def align( length, alignment ):
     if length % alignment == 0:
@@ -114,6 +162,8 @@ class DGenerator( OutputGenerator ):
         self.platform_protection_order = []
         self.platform_extension_protection = dict()
         self.platform_name_protection = dict()
+
+        self.bitmask_flag_bits_flags = dict()   # record occurence of VkSomeFlags or VkSomeFlagBits for pairing
 
 
     # start processing
@@ -476,198 +526,14 @@ class DGenerator( OutputGenerator ):
     def appendSection( self, section, text ):
         self.sections[ section ].append( text )
 
+    # defer generation for bitmasks, so we can pair alias VkSomeFlags with enum VkSomeFlagBits : VkSomeFlags {}
+    def genEnumsOrFlags( self, group_name, group_elem, type_alias = None ):
 
-    # categories
-    def genType( self, typeinfo, name, alias ):
-        super().genType( typeinfo, name, alias )
+        is_enum = type_alias is None
 
-        if 'requires' in typeinfo.elem.attrib:
-            required = typeinfo.elem.attrib[ 'requires' ]
-            if required.endswith( '.h' ):
-                return
-            elif required == 'vk_platform':
-                return
-
-
-        if 'category' not in typeinfo.elem.attrib:
-            #for k, v in typeinfo.elem.attrib.items():
-            #   self.tests_file_content += '{0} : {1}'.format( k, v )
-            return
-
-        category = typeinfo.elem.get( 'category' )
-
-        if alias:
-            self.appendSection( category, 'alias {0} = {1};'.format( name, alias ))
-            return
-
-
-        if category == 'define':
-            if name.startswith( 'VK_API_VERSION_' ):
-                api_version = name.lstrip( 'VK_API_VERSION_' )
-                self.appendSection( 'define', '// Vulkan {0} version number'.format( api_version.replace( '_', '.' ) ))
-                self.appendSection( 'define', 'enum {0} = VK_MAKE_VERSION( {1}, 0 );  // Patch version should always be set to 0'.format( name, api_version.replace( '_', ', ' )))
-
-        # alias VkFlags = uint32_t;
-        if category == 'basetype':
-            #self.appendSection( 'basetype', 'alias {0} = {1};'.format( name, typeinfo.elem.find( 'type' ).text ))  # .find( 'type' ) does not work any more, why ???
-            self.appendSection( 'basetype', 'alias {0} = {1};'.format( name, typeinfo.elem[0].text ))
-
-        # mixin( VK_DEFINE_HANDLE!q{VkInstance} );
-        elif category == 'handle':
-            self.appendSection( 'handle', 'mixin( {0}!q{{{1}}} );'.format( typeinfo.elem.find( 'type' ).text, name ))
-
-        # alias VkFlags with ... Flags corresponding to ...FlagBits: enum VkFormatFeatureFlagBits {...}; alias VkFormatFeatureFlags = VkFlags;
-        elif category == 'bitmask':
-            self.appendSection( 'bitmask', 'alias {0} = VkFlags;'.format( name ))
-
-        # alias PFN_vkAllocationFunction = void* function( ... )
-        elif category == 'funcpointer':
-            return_type = typeinfo.elem.text[ 8 : -13 ]
-            #params = ''.join( getFullType( x.replace( 16 * ' ', '', 1 )) for x in islice( typeinfo.elem.itertext(), 2, None ))
-            params = ''.join( x for x in islice( typeinfo.elem.itertext(), 2, None ))
-            param_lines = params.splitlines( 1 )    # 1 means include line break
-            trim_space = True
-            for i in range( len( param_lines )):
-                line = param_lines[ i ]
-                if line.startswith( ' ' ):
-                    line = line.strip( ' ' )
-                    if line.startswith( 'const ' ):
-                        line = line.replace( 'const ', 'const( ')   # scope const to next element
-                        line = line.replace( '*', ' )*' )           # end scope before asterisk
-                        line = line.replace( '   ', '', 1 )         # remove three spaces taken by parenthesis and one space before
-                    line = self.indent + line
-                    trim_space = trim_space and 16 * ' ' in line
-                param_lines[ i ] = line
-
-            if trim_space:
-                params = ''.join( line.replace( 16 * ' ', '', 1 ) for line in param_lines )
-            else:
-                params = ''.join( param_lines )
-
-            #self.tests_file_content += params + '\n\n'
-            params.replace( ')', ' )' )
-
-            if params == ')(void);' : params = ');'
-            else: params = params[ 2: ].replace( ');', '\n);' ).replace( '  )', ' )' )
-
-            if self.sections[ 'funcpointer' ]:
-                self.appendSection( 'funcpointer', '' )
-            self.appendSection( 'funcpointer', 'alias {0} = {1} function({2}'.format( name, return_type, params ))
-            #self.tests_file_content += 'alias {0} = {1} function{2}'.format( name, return_type, params )
-
-        # structs and unions
-        elif category == 'struct' or category == 'union':
-            self.genStruct( typeinfo, name, alias )
-
-        # extract header version: enum VK_HEADER_VERSION = 69;
-        elif category == 'define' and name == 'VK_HEADER_VERSION':
-            for header_version in islice( typeinfo.elem.itertext(), 2, 3 ):  # get the version string from the one element list
-                self.header_version = 'enum VK_HEADER_VERSION ={0};'.format( header_version )
-
-        else:
-            pass
-
-
-    # structs and unions
-    def genStruct( self, typeinfo, name, alias ):
-        super().genStruct( typeinfo, name, alias )
-
-        category = typeinfo.elem.attrib[ 'category' ]
-
-        if self.sections[ 'struct' ]:
-           self.appendSection( 'struct', '' )
-        self.appendSection( 'struct', '{0} {1} {{'.format( category, name ))
-
-        member_type_length  = 0
-        member_name_length  = 0
-        member_type_names   = []
-        member_bitfield     = []
-
-        has_member_scope    = False
-        has_member_module   = False
-        has_member_version  = False
-
-
-        for member in typeinfo.elem.findall( 'member' ):
-            member_name = member.find( 'name' ).text
-
-            # don't use D keyword module
-            if member_name == 'module':
-                member_name = 'Module'
-                has_member_module = True
-
-            # don't use D keyword scope
-            if member_name == 'scope':
-                member_name = 'Scope'
-                has_member_scope = True
-
-            # don't use D keyword version
-            if member_name == 'version':
-                member_name = 'Version'
-                has_member_version = True
-
-            # member default values, not sure if this is supported for bitfields. If not move this into next else clause
-            if member.get( 'values' ):
-                member_name += ' = ' + member.get( 'values' )
-
-
-            # v1.2.135 introduced a struct (VkAccelerationStructureInstanceKHR) with bitfields
-            # DLang bitfields are implemented via std.bitmanip.bitfields, we need extra work to parse the xml data
-            member_type = getFullType( member ).strip()
-            member_type_bitcount = member_type.split(':')
-
-            if len( member_type_bitcount ) == 2:    # bitfields
-                member_bitfield.append( ( member_type_bitcount[0] + ',', '"{0}",'.format( member_name ), member_type_bitcount[1] ))
-                member_type_length = max( member_type_length, len( member_type ) + len( self.indent ))
-                member_name_length = max( member_name_length, len( member_name ) + 4 )
-            else:                                   # non-bitfield processing
-                if member_bitfield:                     # store code chunk
-                    member_type_names.append( member_bitfield ) # store all bitfields in a list of tuples
-                    member_bitfield = []                        # now we can scan for and process another bitfield in this struct
-
-                # get the maximum string length of all member types
-                member_type_names.append( ( member_type, member_name ) )
-                member_type_length = max( member_type_length, len( member_type ) + 2 )
-                #member_type_length = align( max( member_type_length, len( member_type )), len( self.indent ))
-
-
-        # loop second time and use maximum type string length to offset member names
-        for type_name in member_type_names:
-
-            if type( type_name ) is tuple:  # normal struct members
-                self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, type_name[0].ljust( member_type_length ), type_name[1] ))
-            else:                           # bitfields
-                self.appendSection( 'struct', '{0}mixin( bitfields!('.format( self.indent ))
-                for ( t, n, b ) in type_name:   # t(ype), n(ame), b(itfield)
-                    self.appendSection( 'struct', '{0}{1}{2}{3},'.format( 2 * self.indent, t.ljust( member_type_length - len( self.indent )), n.ljust( member_name_length ), b ))
-                self.appendSection( 'struct', '{0}));'.format( self.indent ))
-
-        if has_member_scope:
-            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), 'scope_ = Scope' ))
-            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), '_scope = Scope' ))
-
-        if has_member_module:
-            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), 'module_ = Module' ))
-            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), '_module = Module' ))
-
-        if has_member_version:
-            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), 'version_ = Version' ))
-            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), '_version = Version' ))
-
-        self.appendSection( 'struct', '}' )
-
-
-    # named and global enums and enum flag bits
-    def genGroup( self, group_info, group_name, alias ):
-        super().genGroup( group_info, group_name, alias )
-
-        group_elem  = group_info.elem
-        category    = group_elem.get( 'type' )
-        is_enum     = category == 'enum'
-
-        if alias:
-            self.appendSection( category, 'alias {0} = {1};'.format( group_name, alias ))
-            return  # its either alias xor enum group
+        #if not is_enum:
+        #    self.tests_file_content += '2 - {0} = {1}\n'.format( '1' if is_enum else '0', str(len(group_elem_requires)))
+        #    printTree( self, type_alias )
 
         SNAKE_NAME = re.sub( r'([0-9a-z_])([A-Z0-9][^A-Z0-9]?)', r'\1_\2', group_name ).upper()
         #self.tests_file_content += group_name.ljust( 30 ) + ' : ' + SNAKE_NAME + '\n'
@@ -681,9 +547,30 @@ class DGenerator( OutputGenerator ):
             name_prefix = SNAKE_NAME.rsplit( name_suffix, 1 )[ 0 ]
             #self.tests_file_content += name_suffix + '\n'
 
+        #printTree( self, group_elem )
 
-        # group enums by their name
-        scoped_group = [ 'enum ' + group_name + ' {' ]
+        # scoped enums
+        scoped_group = []
+
+        # bitfiled Flags alias
+        if not is_enum:
+
+            enum_type = type_alias.attrib[ 'name' ]
+
+            # alias corresponding Flags to the underlying (indirect) type
+            scoped_group.append( 'alias {0} = {1};'.format( enum_type, type_alias.find( 'type' ).text ))
+
+
+            # group scoped enums by their name
+            scoped_group.append( 'enum {0} : {1} {{'.format( group_name, enum_type ))
+
+            #printTree( self, type_alias )
+
+        # no Flags for enums
+        else:
+
+            # group scoped enums by their name
+            scoped_group.append( 'enum {0} {{'.format( group_name ))
 
         # add grouped enums to global scope
         global_group = [ '' ]
@@ -726,6 +613,14 @@ class DGenerator( OutputGenerator ):
                 # Should catch exceptions here for more complex constructs. Not yet.
                 ( enum_val, enum_str ) = self.enumToValue( elem, True )
                 name = elem.get( 'name' )
+
+                # as of version 1.2.170 two bitmaks have a bitwidth of 64
+                # (VkPipelineStageFlagBits2KHR and VkAccessFlags2KHR) requiring special treatment
+                # we need to catch all enum bitfield values ending with ULL and remove the final L
+                # unfortunatelly this is true for the enum VK_SAMPLER_YCBCR_RANGE_ITU_FUL as well
+                # so we also check if the current enum group is an enum or a bitfield
+                if not is_enum and enum_str.endswith( 'ULL' ):
+                    enum_str = enum_str[ : -1 ]
 
                 scoped_elem = '{0} = {1},'.format( ( self.indent + name ).ljust( max_scoped_len ), enum_str )
                 global_elem = '{0} = {1}.{2};'.format( ( 'enum ' + name ).ljust( max_global_len ), group_name, name )
@@ -772,15 +667,275 @@ class DGenerator( OutputGenerator ):
             global_group.append( '{0} = {1}.{2}{3}{4};'.format(( 'enum ' + name_prefix + '_END_RANGE'   + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_END_RANGE'  , name_suffix ))
             global_group.append( '{0} = {1}.{2}{3}{4};'.format(( 'enum ' + name_prefix + '_RANGE_SIZE'  + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_RANGE_SIZE' , name_suffix ))
 
-        scoped_group.append(( self.indent + name_prefix + '_MAX_ENUM' + name_suffix ).ljust( max_scoped_len ) + ' = 0x7FFFFFFF' )
-        scoped_group.append( '}' )
-        global_group.append( '{0} = {1}.{2}{3}{4};'.format( ( 'enum ' + name_prefix + '_MAX_ENUM' + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_MAX_ENUM' , name_suffix ))
+        # as of version 1.2.170 two bitmaks have a bitwidth of 64
+        # (VkPipelineStageFlagBits2KHR and VkAccessFlags2KHR) requiring special treatment
+        # we need to drop the _MAX_ENUM (final) entry, it is also not present in the c header version
+        if 'bitwidth' not in group_elem.attrib:
+            scoped_group.append(( self.indent + name_prefix + '_MAX_ENUM' + name_suffix ).ljust( max_scoped_len ) + ' = 0x7FFFFFFF' )
+            scoped_group.append( '}' )
+            global_group.append( '{0} = {1}.{2}{3}{4};'.format( ( 'enum ' + name_prefix + '_MAX_ENUM' + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_MAX_ENUM' , name_suffix ))
+
+        else:
+            scoped_group.append( '}' )
 
 
         section = 'group' if is_enum else 'bitmask'
         if self.sections[ section ]:
             self.appendSection( section, '' )                       # this empty string will be terminated with '\n' at the join operation
         self.sections[ section ] += scoped_group + global_group     # concatenating three lists
+
+        #if not is_enum:
+        #    self.tests_file_content += '\n'.join( scoped_group ) + '\n\n'
+
+
+    # categories
+    def genType( self, typeinfo, name, alias ):
+        super().genType( typeinfo, name, alias )
+
+        elem = typeinfo.elem
+        #printTree( self, elem )
+
+        if 'requires' in elem.attrib:
+            required = elem.attrib[ 'requires' ]
+            if required.endswith( '.h' ):
+                return
+            elif required == 'vk_platform':
+                return
+
+
+        if 'category' not in elem.attrib:
+            #for k, v in elem.attrib.items():
+            #   self.tests_file_content += '{0} : {1}'.format( k, v )
+            return
+
+        category = elem.get( 'category' )
+
+        if alias:
+            self.appendSection( category, 'alias {0} = {1};'.format( name, alias ))
+            return
+
+        # c header and API version
+        if category == 'define':
+
+            # extract header version: enum VK_HEADER_VERSION = 69;
+            if name == 'VK_HEADER_VERSION':
+                for header_version in islice( elem.itertext(), 2, 3 ):  # get the version string from the one element list
+                    self.header_version = 'enum VK_HEADER_VERSION ={0};'.format( header_version )
+
+            # extract API version: enum VK_API_VERSION_1_0 = VK_MAKE_VERSION( 1, 0, 0 );
+            elif name.startswith( 'VK_API_VERSION_' ):
+                api_version = name.lstrip( 'VK_API_VERSION_' )
+                self.appendSection( 'define', '// Vulkan {0} version number'.format( api_version.replace( '_', '.' ) ))
+                self.appendSection( 'define', 'enum {0} = VK_MAKE_VERSION( {1}, 0 );  // Patch version should always be set to 0'.format( name, api_version.replace( '_', ', ' )))
+
+        # alias VkFlags = uint32_t;
+        elif category == 'basetype':
+            type_child = elem.find( 'type' )
+            if type_child is not None:
+                self.appendSection( 'basetype', 'alias {0} = {1};'.format( name, type_child.text ))
+
+        # mixin( VK_DEFINE_HANDLE!q{VkInstance} );
+        elif category == 'handle':
+            self.appendSection( 'handle', 'mixin( {0}!q{{{1}}} );'.format( elem.find( 'type' ).text, name ))
+
+        # alias VkFlags with ... Flags corresponding to ...FlagBits: enum VkFormatFeatureFlagBits {...}; alias VkFormatFeatureFlags = VkFlags;
+        elif category == 'bitmask':
+
+            # print fileds of an object, object must have __dict__ attribute
+            #fields = vars( typeinfo )
+            #self.tests_file_content += '\nTypeinfo:\n  '
+            #self.tests_file_content += '\n  '.join( '{0} : {1}'.format( k, v ) for k, v in fields.items() )
+            #self.tests_file_content += '\n'
+
+            group_name = None
+            if 'requires' in elem.attrib:
+                group_name = elem.attrib[ 'requires' ]
+            elif 'bitvalues' in elem.attrib:
+                group_name = elem.attrib[ 'bitvalues' ]
+
+            if group_name:
+                if group_name in self.bitmask_flag_bits_flags:
+                    # if FlagBits were captured previously we create the Flags and FlagBits pair now
+                    self.genEnumsOrFlags( group_name, self.bitmask_flag_bits_flags[ group_name ], elem )
+                else:
+                    # else we record this Flags data for defered use
+                    self.bitmask_flag_bits_flags[ group_name ] = elem
+            else:
+                # old behavior still required at some places
+                self.appendSection( 'bitmask', 'alias {0} = {1};'.format( name, elem.find( 'type' ).text ))
+                #self.tests_file_content += '\nGenerate Category bitmask:'
+                #printTree( self, elem )
+
+        # alias PFN_vkAllocationFunction = void* function( ... )
+        elif category == 'funcpointer':
+            return_type = elem.text[ 8 : -13 ]
+            #params = ''.join( getFullType( x.replace( 16 * ' ', '', 1 )) for x in islice( elem.itertext(), 2, None ))
+            params = ''.join( x for x in islice( elem.itertext(), 2, None ))
+            param_lines = params.splitlines( 1 )    # 1 means include line break
+            trim_space = True
+            for i in range( len( param_lines )):
+                line = param_lines[ i ]
+                if line.startswith( ' ' ):
+                    line = line.strip( ' ' )
+                    if line.startswith( 'const ' ):
+                        line = line.replace( 'const ', 'const( ')   # scope const to next element
+                        line = line.replace( '*', ' )*' )           # end scope before asterisk
+                        line = line.replace( '   ', '', 1 )         # remove three spaces taken by parenthesis and one space before
+                    line = self.indent + line
+                    trim_space = trim_space and 16 * ' ' in line
+                param_lines[ i ] = line
+
+            if trim_space:
+                params = ''.join( line.replace( 16 * ' ', '', 1 ) for line in param_lines )
+            else:
+                params = ''.join( param_lines )
+
+            #self.tests_file_content += params + '\n\n'
+            params.replace( ')', ' )' )
+
+            if params == ')(void);' : params = ');'
+            else: params = params[ 2: ].replace( ');', '\n);' ).replace( '  )', ' )' )
+
+            if self.sections[ 'funcpointer' ]:
+                self.appendSection( 'funcpointer', '' )
+            self.appendSection( 'funcpointer', 'alias {0} = {1} function({2}'.format( name, return_type, params ))
+            #self.tests_file_content += 'alias {0} = {1} function{2}'.format( name, return_type, params )
+
+        # structs and unions
+        elif category == 'struct' or category == 'union':
+            self.genStruct( typeinfo, name, alias )
+
+        else:
+            pass
+
+
+    # structs and unions
+    def genStruct( self, typeinfo, name, alias ):
+        super().genStruct( typeinfo, name, alias )
+
+        elem = typeinfo.elem
+        category = elem.attrib[ 'category' ]
+
+        if self.sections[ 'struct' ]:
+           self.appendSection( 'struct', '' )
+
+        self.appendSection( 'struct', '{0} {1} {{'.format( category, name ))
+
+        member_type_length  = 0
+        member_name_length  = 0
+        member_type_names   = []
+        member_bitfield     = []
+
+        has_member_scope    = False
+        has_member_module   = False
+        has_member_version  = False
+
+
+        for member in elem.findall( 'member' ):
+            member_name = member.find( 'name' ).text
+
+            # don't use D keyword module
+            if member_name == 'module':
+                member_name = 'Module'
+                has_member_module = True
+
+            # don't use D keyword scope
+            if member_name == 'scope':
+                member_name = 'Scope'
+                has_member_scope = True
+
+            # don't use D keyword version
+            if member_name == 'version':
+                member_name = 'Version'
+                has_member_version = True
+
+            # member default values, not sure if this is supported for bitfields. If not move this into next else clause
+            if member.get( 'values' ):
+                member_name += ' = ' + member.get( 'values' )
+
+            # v1.2.135 introduced a struct (VkAccelerationStructureInstanceKHR) with bitfields
+            # DLang bitfields are implemented via std.bitmanip.bitfields, we need extra work to parse the xml data
+            member_type = getFullType( member ).strip()
+            member_type_bitcount = member_type.split(':')
+
+            if len( member_type_bitcount ) == 2:    # bitfields
+                member_bitfield.append( ( member_type_bitcount[ 0 ] + ',', '"{0}",'.format( member_name ), member_type_bitcount[ 1 ] ) )
+                member_type_length = max( member_type_length, len( member_type ) + len( self.indent ))
+                member_name_length = max( member_name_length, len( member_name ) + 4 )
+            else:                                   # non-bitfield processing
+                if member_bitfield:                     # store code chunk
+                    member_type_names.append( member_bitfield ) # store all bitfields in a list of tuples
+                    member_bitfield = []                        # now we can scan for and process another bitfield in this struct
+
+                # get the maximum string length of all member types
+                member_type_names.append( ( member_type, member_name ) )
+                member_type_length = max( member_type_length, len( member_type ) + 2 )
+                #member_type_length = align( max( member_type_length, len( member_type )), len( self.indent ))
+
+
+        # loop second time and use maximum type string length to offset member names
+        for type_name in member_type_names:
+
+            if type( type_name ) is tuple:  # normal struct members
+                #t, n, c = type_name     # t(ype), n(ame), c(omment)
+                #self.appendSection( 'struct', '{0}{1}{2};{3}'.format( self.indent, t.ljust( member_type_length ), n, c ))
+                t, n = type_name     # t(ype), n(ame)
+                self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, t.ljust( member_type_length ), n )) #, c ))
+                #if c: self.tests_file_content += '{0}{1}{2};{3}'.format( self.indent, t.ljust( member_type_length ), n, c )
+
+            else:                           # bitfields
+                self.appendSection( 'struct', '{0}mixin( bitfields!('.format( self.indent ))
+                #for ( t, n, b, c ) in type_name:   # t(ype), n(ame), b(itfield), c(omment)
+                #   self.appendSection( 'struct',  '{0}{1}{2}{3}{4},'.format( 2 * self.indent, t.ljust( member_type_length - len( self.indent )), n.ljust( member_name_length ), b)) #, c ))
+                for ( t, n, b ) in type_name:   # t(ype), n(ame), b(itfield)
+                    self.appendSection( 'struct',  '{0}{1}{2}{3},'.format( 2 * self.indent, t.ljust( member_type_length - len( self.indent )), n.ljust( member_name_length ), b)) #, c ))
+                    #if c: self.tests_file_content += '{0}{1}{2}{3}{4},'.format( 2 * self.indent, t.ljust( member_type_length - len( self.indent )), n.ljust( member_name_length ), b, c )
+                self.appendSection( 'struct', '{0}));'.format( self.indent ))
+
+        if has_member_scope:
+            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), 'scope_ = Scope' ))
+            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), '_scope = Scope' ))
+
+        if has_member_module:
+            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), 'module_ = Module' ))
+            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), '_module = Module' ))
+
+        if has_member_version:
+            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), 'version_ = Version' ))
+            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), '_version = Version' ))
+
+        self.appendSection( 'struct', '}' )
+
+
+    # named and global enums and enum flag bits
+    def genGroup( self, group_info, group_name, alias ):
+        super().genGroup( group_info, group_name, alias )
+
+        if alias:
+            self.appendSection( group_info.elem.get( 'type' ), 'alias {0} = {1};'.format( group_name, alias ))
+            # Todo(pp): some aliases are in a wired order, check and fix e.g. VkPointClippingBehavior
+            #self.tests_file_content += 'alias {0} = {1};\n'.format( group_name, alias )
+            return  # its either alias xor enum group
+
+        group_elem  = group_info.elem
+        category    = group_elem.get( 'type' )
+        is_enum     = category == 'enum'
+
+        #if not is_enum:
+        #    self.tests_file_content += '\nGenerate Group Category {0}: {1}'.format( category, group_name )
+        #    printTree( self, group_elem )
+
+        if is_enum:
+            # enum case without Flags and FlagBits
+            self.genEnumsOrFlags( group_name, group_elem )
+
+        elif group_name in self.bitmask_flag_bits_flags:
+            # if Flags were captured previously we create the Flags and FlagBits pair now
+            self.genEnumsOrFlags( group_name, group_elem, self.bitmask_flag_bits_flags[ group_name ] )
+
+        else:
+            # else we record this FlagBits data for defered use
+            self.bitmask_flag_bits_flags[ group_name ] = group_elem
 
 
     # enum VK_TRUE = 1; enum VK_FALSE = 0; enum _SPEC_VERSION = ; enum _EXTENSION_NAME = ;
@@ -792,7 +947,7 @@ class DGenerator( OutputGenerator ):
             #self.tests_file_content += 'alias {0} = {1};\n'.format( name, alias )
             return
 
-        _,enum_str = self.enumToValue( enuminfo.elem, False )
+        _, enum_str = self.enumToValue( enuminfo.elem, False )
         if enum_str == 'VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT':
             enum_str = 'VkStructureType.' + enum_str
 
