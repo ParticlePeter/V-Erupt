@@ -552,14 +552,29 @@ class DGenerator( OutputGenerator ):
         # scoped enums
         scoped_group = []
 
+        # if a comment is present, it should be prepended to the enum or bitfield
+        #comment = group_elem.find( 'comment' )
+
         # bitfiled Flags alias
         if not is_enum:
+
+            # prepend enum type alias with comment, if available
+            #comment_alias = type_alias.find( 'comment' )
+            #if comment_alias is not None:
+            #    comment_alias = '// {0}'.format( comment_alias.text )
+            #    scoped_group.append( comment_alias )
+            #    self.tests_file_content += '{0}\n'.format( comment_alias )
 
             enum_type = type_alias.attrib[ 'name' ]
 
             # alias corresponding Flags to the underlying (indirect) type
             scoped_group.append( 'alias {0} = {1};'.format( enum_type, type_alias.find( 'type' ).text ))
 
+            # prepend enum with comment, if available
+            #if comment is not None:
+            #    comment = '// {0}'.format( comment.text )
+            #    scoped_group.append( comment )
+            #    self.tests_file_content += '{0}\n'.format( comment )
 
             # group scoped enums by their name
             scoped_group.append( 'enum {0} : {1} {{'.format( group_name, enum_type ))
@@ -568,6 +583,12 @@ class DGenerator( OutputGenerator ):
 
         # no Flags for enums
         else:
+
+            # prepend enum with comment, if available
+            #if comment is not None:
+            #    comment = '// {0}'.format( comment.text )
+            #    scoped_group.append( comment )
+            #    self.tests_file_content += '{0}\n'.format( comment )
 
             # group scoped enums by their name
             scoped_group.append( 'enum {0} {{'.format( group_name ))
@@ -622,6 +643,7 @@ class DGenerator( OutputGenerator ):
                 if not is_enum and enum_str.endswith( 'ULL' ):
                     enum_str = enum_str[ : -1 ]
 
+                # Todo(pp): add comments to scoped versions
                 scoped_elem = '{0} = {1},'.format( ( self.indent + name ).ljust( max_scoped_len ), enum_str )
                 global_elem = '{0} = {1}.{2};'.format( ( 'enum ' + name ).ljust( max_global_len ), group_name, name )
                 if enum_val != None:
@@ -808,6 +830,14 @@ class DGenerator( OutputGenerator ):
         else:
             pass
 
+        # bitmask and enum comments are handled in genEnumsOrFlags, struct and union comments in genStruct
+        #if category != 'bitmask' and category != 'struct' and category != 'union':
+        #    comment = elem.find( 'comment' )
+        #    if comment is not None:
+        #        comment = '\t// {0}'.format( comment.text )
+        #        self.sections[ category ][ -1 ] += comment  # add comment at the end of the last line
+                #self.tests_file_content += '{0}\n'.format( comment )
+
 
     # structs and unions
     def genStruct( self, typeinfo, name, alias ):
@@ -818,6 +848,13 @@ class DGenerator( OutputGenerator ):
 
         if self.sections[ 'struct' ]:
            self.appendSection( 'struct', '' )
+
+        # if a comment is present, it should be prepended to the struct or union
+        #comment = elem.find( 'comment' )
+        #if comment is not None:
+        #    comment = '// {0}'.format( comment.text )
+        #    self.appendSection( 'struct', comment )
+            #self.tests_file_content += '{0}\n'.format( comment )
 
         self.appendSection( 'struct', '{0} {1} {{'.format( category, name ))
 
@@ -853,13 +890,17 @@ class DGenerator( OutputGenerator ):
             if member.get( 'values' ):
                 member_name += ' = ' + member.get( 'values' )
 
+            #comment = member.find( 'comment' )
+            #comment = '' if comment is None else '\t// {0}'.format( comment.text )
+
+
             # v1.2.135 introduced a struct (VkAccelerationStructureInstanceKHR) with bitfields
             # DLang bitfields are implemented via std.bitmanip.bitfields, we need extra work to parse the xml data
             member_type = getFullType( member ).strip()
             member_type_bitcount = member_type.split(':')
 
             if len( member_type_bitcount ) == 2:    # bitfields
-                member_bitfield.append( ( member_type_bitcount[ 0 ] + ',', '"{0}",'.format( member_name ), member_type_bitcount[ 1 ] ) )
+                member_bitfield.append( ( member_type_bitcount[ 0 ] + ',', '"{0}",'.format( member_name ), member_type_bitcount[ 1 ] ) ) #, comment ) )
                 member_type_length = max( member_type_length, len( member_type ) + len( self.indent ))
                 member_name_length = max( member_name_length, len( member_name ) + 4 )
             else:                                   # non-bitfield processing
@@ -868,7 +909,7 @@ class DGenerator( OutputGenerator ):
                     member_bitfield = []                        # now we can scan for and process another bitfield in this struct
 
                 # get the maximum string length of all member types
-                member_type_names.append( ( member_type, member_name ) )
+                member_type_names.append( ( member_type, member_name ) ) #, comment ) )
                 member_type_length = max( member_type_length, len( member_type ) + 2 )
                 #member_type_length = align( max( member_type_length, len( member_type )), len( self.indent ))
 
