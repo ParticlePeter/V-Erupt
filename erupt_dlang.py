@@ -614,14 +614,6 @@ class DGenerator( OutputGenerator ):
                 ( enum_val, enum_str ) = self.enumToValue( elem, True )
                 name = elem.get( 'name' )
 
-                # as of version 1.2.170 two bitmaks have a bitwidth of 64
-                # (VkPipelineStageFlagBits2KHR and VkAccessFlags2KHR) requiring special treatment
-                # we need to catch all enum bitfield values ending with ULL and remove the final L
-                # unfortunatelly this is true for the enum VK_SAMPLER_YCBCR_RANGE_ITU_FUL as well
-                # so we also check if the current enum group is an enum or a bitfield
-                if not is_enum and enum_str.endswith( 'ULL' ):
-                    enum_str = enum_str[ : -1 ]
-
                 scoped_elem = '{0} = {1},'.format( ( self.indent + name ).ljust( max_scoped_len ), enum_str )
                 global_elem = '{0} = {1}.{2};'.format( ( 'enum ' + name ).ljust( max_global_len ), group_name, name )
                 if enum_val != None:
