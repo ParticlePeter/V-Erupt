@@ -57,7 +57,7 @@ def printTree( self, elem ):
             self.tests_file_content += indent + '------\n'
             if current.tag: self.tests_file_content += '{0}tag  : {1}\n'.format( indent, current.tag )
             if current.text: self.tests_file_content += '{0}text : {1}\n'.format( indent, current.text )
-            if current.attrib: self.tests_file_content += '{0}attr : {1}\n'.format( indent, ', '.join( '{0} : {1}'.format( k, v ) for k, v in current.attrib.items()))
+            if current.attrib: self.tests_file_content += '{0}attr : {1}\n'.format( indent, ', '.join( '\n  {0} : {1}'.format( k, v ) for k, v in current.attrib.items()))
             if current.tail: self.tests_file_content += '{0}tail : {1}\n'.format( indent, current.tail )
 
         if current: # has children
@@ -526,6 +526,7 @@ class DGenerator( OutputGenerator ):
     def appendSection( self, section, text ):
         self.sections[ section ].append( text )
 
+
     # defer generation for bitmasks, so we can pair alias VkSomeFlags with enum VkSomeFlagBits : VkSomeFlags {}
     def genEnumsOrFlags( self, group_name, group_elem, type_alias = None ):
 
@@ -709,16 +710,22 @@ class DGenerator( OutputGenerator ):
         # c header and API version
         if category == 'define':
 
-            # extract header version: enum VK_HEADER_VERSION = 69;
-            if name == 'VK_HEADER_VERSION':
-                for header_version in islice( elem.itertext(), 2, 3 ):  # get the version string from the one element list
-                    self.header_version = 'enum VK_HEADER_VERSION ={0};'.format( header_version )
+            # printTree( self, elem )
 
-            # extract API version: enum VK_API_VERSION_1_0 = VK_MAKE_VERSION( 1, 0, 0 );
-            elif name.startswith( 'VK_API_VERSION_' ):
-                api_version = name.lstrip( 'VK_API_VERSION_' )
-                self.appendSection( 'define', '// Vulkan {0} version number'.format( api_version.replace( '_', '.' ) ))
-                self.appendSection( 'define', 'enum {0} = VK_MAKE_VERSION( {1}, 0 );  // Patch version should always be set to 0'.format( name, api_version.replace( '_', ', ' )))
+            # extract header version: enum VK_HEADER_VERSION = 175;
+            # we prepend to the existing self.header_version, in case VK_HEADER_VERSION_COMPLETE was parsed already, which requires VK_HEADER_VERSION
+            # the elem.text begins with a comment, which we would like to keep, followed by #define on the next line, which we get rid of
+            if name == 'VK_HEADER_VERSION':
+                self.header_version = '{0} (corresponding c header)\nenum {1} ={2};\n{3}\n'.format( elem.text.splitlines()[0], name, elem[ 0 ].tail, self.header_version )
+                #printTree( self, elem )
+
+            # extract header version complete: enum VK_HEADER_VERSION_COMPLETE = VK_MAKE_API_VERSION( 0, 1, 2, VK_HEADER_VERSION )
+            # we append to the existing self.header_version, in case VK_HEADER_VERSION was parsed already, which is required by VK_HEADER_VERSION_COMPLETE
+            # the elem.text begins with a comment, which we would like to keep, followed by #define on the next line, which we get rid of
+            elif name == 'VK_HEADER_VERSION_COMPLETE':
+                type_child = elem.find( 'type' )
+                self.header_version += '{0} (corresponding c header)\nenum {1} = {2}( {3} );'.format( elem.text.splitlines()[0], name, type_child.text, type_child.tail[ 1 : -1 ] )
+                #printTree( self, elem )
 
         # alias VkFlags = uint32_t;
         elif category == 'basetype':
@@ -950,7 +957,6 @@ class DGenerator( OutputGenerator ):
         #self.tests_file_content += 'enum {0} = {1};'.format( name, enum_str ) + '\n'
 
 
-
     # functions
     def genCmd( self, cmdinfo, name, alias ):
         super().genCmd( cmdinfo, name, alias )
@@ -1064,13 +1070,6 @@ class DGenerator( OutputGenerator ):
                 convenience_func = '{0}  {1}( {2} ) {{ {3}{4}( commandBuffer{5} ); }}'.format(
                     return_type, name[2:], joined_params, do_return, name, joined_args ).replace( '(  )', '()' )
                 self.feature_content[ self.featureName ][ 'Conven_Funcs' ].append( convenience_func )
-
-
-
-
-
-
-
 
 
 
