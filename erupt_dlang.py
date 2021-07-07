@@ -828,6 +828,7 @@ class DGenerator( OutputGenerator ):
         has_member_scope    = False
         has_member_module   = False
         has_member_version  = False
+        has_member_function = False
 
 
         for member in elem.findall( 'member' ):
@@ -847,6 +848,11 @@ class DGenerator( OutputGenerator ):
             if member_name == 'version':
                 member_name = 'Version'
                 has_member_version = True
+
+            # don't use D keyword function
+            if member_name == 'function':
+                member_name = 'Function'
+                has_member_function = True
 
             # member default values, not sure if this is supported for bitfields. If not move this into next else clause
             if member.get( 'values' ):
@@ -902,6 +908,11 @@ class DGenerator( OutputGenerator ):
         if has_member_version:
             self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), 'version_ = Version' ))
             self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), '_version = Version' ))
+
+        if has_member_function:
+            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), 'function_ = Function' ))
+            self.appendSection( 'struct', '{0}{1}{2};'.format( self.indent, 'alias'.ljust( member_type_length ), '_function = Function' ))
+
 
         self.appendSection( 'struct', '}' )
 
@@ -1008,6 +1019,8 @@ class DGenerator( OutputGenerator ):
         # helper to catch and replace parameter names which are DLnag keywords (currently only version)
         def replaceKeyword( name ):
             if name == 'version': return 'Version'
+            elif name == 'module' : return 'Module'
+            elif name == 'function' : return 'Function'
             else: return name
 
 
