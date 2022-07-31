@@ -615,6 +615,18 @@ class DGenerator( OutputGenerator ):
                 ( enum_val, enum_str ) = self.enumToValue( elem, True )
                 name = elem.get( 'name' )
 
+                # as of version 1.2.170 two bitmaks have a bitwidth of 64
+                # (VkPipelineStageFlagBits2KHR and VkAccessFlags2KHR) requiring special treatment
+                # we need to catch all enum bitfield values ending with ULL and remove the final L
+                # unfortunately this is true for the enum VK_SAMPLER_YCBCR_RANGE_ITU_FUL as well
+                # so we also check if the current enum group is an enum or a bitfield
+                #
+                # The ULL postfix of VkFlags64 have been removed from vk.xml in version 1.2.174,
+                # but unnecessarily added back by some douche in version 1.3.222.
+                # This time we keep the code handling, but remove the whole ULL instead of only the last L
+                if not is_enum and enum_str.endswith( 'ULL' ):
+                    enum_str = enum_str[ : -3 ]
+
                 scoped_elem = '{0} = {1},'.format( ( self.indent + name ).ljust( max_scoped_len ), enum_str )
                 global_elem = '{0} = {1}.{2};'.format( ( 'enum ' + name ).ljust( max_global_len ), group_name, name )
                 if enum_val != None:
@@ -964,8 +976,14 @@ class DGenerator( OutputGenerator ):
         elif enum_str == '(~0ULL)':
             enum_str = '(~0UL)'
 
-        self.appendSection( 'enum', 'enum {0} = {1};'.format( name, enum_str ))
-        #self.tests_file_content += 'enum {0} = {1};'.format( name, enum_str ) + '\n'
+        # enum extension name pointers must be explicitely typed to const( char )*
+        # otherwise they are interpreted as d strings
+        if name.endswith( '_NAME' ):
+           self.appendSection( 'enum', 'enum const( char )* {0} = {1};'.format( name, enum_str ))
+           #self.tests_file_content +=  'enum const( char )* {0} = {1};'.format( name, enum_str ) + '\n'
+        else:
+            self.appendSection( 'enum', 'enum {0} = {1};'.format( name, enum_str ))
+            #self.tests_file_content +=  'enum {0} = {1};'.format( name, enum_str ) + '\n'
 
 
     # functions
