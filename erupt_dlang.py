@@ -594,7 +594,7 @@ class DGenerator( OutputGenerator ):
         required_enum_names = [ elem.get( 'name' ) for elem in enums if self.isEnumRequired( elem ) ]
         if is_enum and not required_enum_names: return
         max_global_len = len( max( required_enum_names, key = lambda name: len( name ))) if required_enum_names else 0
-        max_global_len = align( max( 5 + max_global_len, len( name_prefix ) + 17 ), 2 * len( self.indent )) # len( 'enum ' ) = 5, len( '_BEGIN_RANGE' ) = 12
+        max_global_len = align( 5 + max_global_len, 2 * len( self.indent )) # len( 'enum ' ) = 5, len( '_BEGIN_RANGE' ) = 12
         max_scoped_len = max_global_len # global enums are one char longer than scoped enums, hence + 1
 
         # some enums elements have been renamed, the old names are aliased with new neames
@@ -660,17 +660,6 @@ class DGenerator( OutputGenerator ):
 
         if global_alias: global_group += global_alias
         if scoped_alias: scoped_group += scoped_alias
-
-        # Generate min/max value tokens and a range-padding enum. Need some
-        # additional padding to generate correct names...
-        if is_enum:
-            scoped_group.append( '{0} = {1},'.format(           '{0}{1}{2}{3}'.format( self.indent, name_prefix, '_BEGIN_RANGE', name_suffix ).ljust( max_scoped_len ), min_name ))
-            scoped_group.append( '{0} = {1},'.format(           '{0}{1}{2}{3}'.format( self.indent, name_prefix, '_END_RANGE',   name_suffix ).ljust( max_scoped_len ), max_name ))
-            scoped_group.append( '{0} = {1} - {2} + 1,'.format( '{0}{1}{2}{3}'.format( self.indent, name_prefix, '_RANGE_SIZE',  name_suffix ).ljust( max_scoped_len ), max_name, min_name ))
-
-            global_group.append( '{0} = {1}.{2}{3}{4};'.format(( 'enum ' + name_prefix + '_BEGIN_RANGE' + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_BEGIN_RANGE', name_suffix ))
-            global_group.append( '{0} = {1}.{2}{3}{4};'.format(( 'enum ' + name_prefix + '_END_RANGE'   + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_END_RANGE'  , name_suffix ))
-            global_group.append( '{0} = {1}.{2}{3}{4};'.format(( 'enum ' + name_prefix + '_RANGE_SIZE'  + name_suffix ).ljust( max_global_len ), group_name, name_prefix, '_RANGE_SIZE' , name_suffix ))
 
         # as of version 1.2.170 two bitmaks have a bitwidth of 64
         # (VkPipelineStageFlagBits2KHR and VkAccessFlags2KHR) requiring special treatment
