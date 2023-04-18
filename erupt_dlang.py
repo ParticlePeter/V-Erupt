@@ -44,7 +44,7 @@ print_debug = False
 test_file = None
 
 
-# print contents of an elem (sub)tree to file, to examine its contenet
+# print contents of an elem (sub)tree to file, to examine its content
 def printTree( self, elem ):
 
     # test if an element has children: if elem:
@@ -146,7 +146,7 @@ class DGenerator( OutputGenerator ):
         self.platform_extension_protection = dict()
         self.platform_name_protection = dict()
 
-        self.bitmask_flag_bits_flags = dict()   # record occurence of VkSomeFlags or VkSomeFlagBits for pairing
+        self.bitmask_flag_bits_flags = dict()   # record occurrence of VkSomeFlags or VkSomeFlagBits for pairing
 
 
     # start processing
@@ -184,14 +184,14 @@ class DGenerator( OutputGenerator ):
             TYPES_OR_VIDEO = VK_VIDEO
 
         # --------------------------------- #
-        # write types.d and vk_viedo.d file #
+        # write types.d and vk_video.d file #
         # --------------------------------- #
 
         # helper function to join function sections into format substitutions
         def typesSection():
             result = ''
 
-            # some of the sections need formating before being merged into one code block
+            # some of the sections need formatting before being merged into one code block
             # in these cases the  substitute parameter will contain the corresponding term
             for feature in self.feature_order:
                 feature_section = self.feature_content[ feature ][ 'Type_Definitions' ]
@@ -212,8 +212,8 @@ class DGenerator( OutputGenerator ):
 
         # vulkan-docs-v1.3.238 introduced a second xml file (video.xml)
         # both xml files get parsed, the current file is stored in the generator options
-        # video.xml contains only type definitions, hence we can exit after types hevae been written out
-        # additional xml; files will probably need a more sofisticated approach
+        # video.xml contains only type definitions, hence we can exit after types have been written out
+        # additional xml; files will probably need a more sophisticated approach
         if self.genOpts.current_xml != 'vk':
             if print_debug:
                 write( self.tests_file_content, file = tests_file )
@@ -288,14 +288,14 @@ class DGenerator( OutputGenerator ):
             result = ''
             joiner = '\n' + indent
 
-            # some of the sections need formating before being merged into one code block
+            # some of the sections need formatting before being merged into one code block
             # in these cases the substitute parameter will contain the corresponding term
             for feature in self.feature_order:
                 feature_section = self.feature_content[ feature ][ section ]
                 if feature_section:
                     result += '\n{0}// {1}\n{0}{2}\n'.format( indent, feature, joiner.join( feature_section ))
 
-            # some of the sections need formating before being merged into one code block
+            # some of the sections need formatting before being merged into one code block
             # in these cases the  substitute parameter will contain the corresponding term
             if Instance_or_Device:
                 result = result.format( INSTANCE_OR_DEVICE = Instance_or_Device, instance_or_device = Instance_or_Device.lower())
@@ -352,7 +352,7 @@ class DGenerator( OutputGenerator ):
         # write platform_extensions.d file #
         # -------------------------------- #
 
-        # helper function to construct AliasSequnces of extension enums
+        # helper function to construct AliasSequences of extension enums
         def platformProtectionAlias():
             if self.platform_protection_order:
                 max_protect_len = len( max( self.platform_protection_order, key = lambda p: len( p )))
@@ -397,7 +397,7 @@ class DGenerator( OutputGenerator ):
                     )
                     else_prefix = 'else '
 
-            # some of the sections need formating before being merged into one code block
+            # some of the sections need formatting before being merged into one code block
             # in these cases the substitute parameter will contain the corresponding term
             if Instance_or_Device:
                 result = result.format( INSTANCE_OR_DEVICE = Instance_or_Device, instance_or_device = Instance_or_Device.lower())
@@ -594,8 +594,8 @@ class DGenerator( OutputGenerator ):
         max_global_len = align( 5 + max_global_len, 2 * len( self.indent )) # len( 'enum ' ) = 5, len( '_BEGIN_RANGE' ) = 12
         max_scoped_len = max_global_len # global enums are one char longer than scoped enums, hence + 1
 
-        # some enums elements have been renamed, the old names are aliased with new neames
-        # and the elements added to the end of the enum elemet lists
+        # some enums elements have been renamed, the old names are aliased with new names
+        # and the elements added to the end of the enum element lists
         scoped_alias = []
         global_alias = []
 
@@ -604,7 +604,7 @@ class DGenerator( OutputGenerator ):
 
         for elem in enums:
 
-            # Extension enumerants are only included if they are required
+            # Extension enumerates are only included if they are required
             if self.isEnumRequired( elem ):
                 # Convert the value to an integer and use that to track min/max.
                 # Values of form -( number ) are accepted but nothing more complex.
@@ -713,7 +713,8 @@ class DGenerator( OutputGenerator ):
             # extract header version, e.g.: enum VK_HEADER_VERSION = 238;
             # the elem.text begins with a comment, which we would like to keep, followed by #define on the next line, which we get rid of
             if name == 'VK_HEADER_VERSION':
-                self.appendSection( 'define', '\n{0} (corresponding c header)\nenum {1} ={2};\n'.format( elem.text.splitlines()[0], name, elem[ 0 ].tail ))
+                name_child = elem.find( 'name' )
+                self.appendSection( 'define', '\n{0} (corresponding c header)\nenum {1} = {2};\n'.format( elem.text.splitlines()[0], name, name_child.tail.strip() ))
 
 
             # extract header version complete: enum VK_HEADER_VERSION_COMPLETE = VK_MAKE_API_VERSION( 0, 1, 2, VK_HEADER_VERSION )
@@ -721,7 +722,6 @@ class DGenerator( OutputGenerator ):
             elif name == 'VK_HEADER_VERSION_COMPLETE':
                 type_child = elem.find( 'type' )
                 self.appendSection( 'define', '{0} (corresponding c header)\nenum {1} = {2}( {3} );'.format( elem.text.splitlines()[0], name, type_child.text, type_child.tail[ 1 : -1 ] ))
-                #printTree( self, elem )
 
 
             elif name == 'VK_MAKE_API_VERSION':
@@ -801,7 +801,7 @@ class DGenerator( OutputGenerator ):
         # alias VkFlags with ... Flags corresponding to ...FlagBits: enum VkFormatFeatureFlagBits {...}; alias VkFormatFeatureFlags = VkFlags;
         elif category == 'bitmask':
 
-            # print fileds of an object, object must have __dict__ attribute
+            # print fields of an object, object must have __dict__ attribute
             #fields = vars( typeinfo )
             #self.tests_file_content += '\nTypeinfo:\n  '
             #self.tests_file_content += '\n  '.join( '{0} : {1}'.format( k, v ) for k, v in fields.items() )
@@ -818,7 +818,7 @@ class DGenerator( OutputGenerator ):
                     # if FlagBits were captured previously we create the Flags and FlagBits pair now
                     self.genEnumsOrFlags( group_name, self.bitmask_flag_bits_flags[ group_name ], elem )
                 else:
-                    # else we record this Flags data for defered use
+                    # else we record this Flags data for deferred use
                     self.bitmask_flag_bits_flags[ group_name ] = elem
             else:
                 # old behavior still required at some places
@@ -954,7 +954,7 @@ class DGenerator( OutputGenerator ):
                 self.appendSection( 'struct', '{0}mixin( bitfields!('.format( self.indent ))
                 #for ( t, n, b, c ) in type_name:   # t(ype), n(ame), b(itfield), c(omment)
                 #   self.appendSection( 'struct',  '{0}{1}{2}{3}{4},'.format( 2 * self.indent, t.ljust( member_type_length - len( self.indent )), n.ljust( member_name_length ), b)) #, c ))
-                for ( t, n, b ) in type_name:   # t(ype), n(ame), b(itfield)
+                for ( t, n, b ) in type_name:       # t(ype), n(ame), b(itfield)
                     self.appendSection( 'struct',  '{0}{1}{2}{3},'.format( 2 * self.indent, t.ljust( member_type_length - len( self.indent )), n.ljust( member_name_length ), b)) #, c ))
                     #if c: self.tests_file_content += '{0}{1}{2}{3}{4},'.format( 2 * self.indent, t.ljust( member_type_length - len( self.indent )), n.ljust( member_name_length ), b, c )
                 self.appendSection( 'struct', '{0}));'.format( self.indent ))
@@ -1006,7 +1006,7 @@ class DGenerator( OutputGenerator ):
             self.genEnumsOrFlags( group_name, group_elem, self.bitmask_flag_bits_flags[ group_name ] )
 
         else:
-            # else we record this FlagBits data for defered use
+            # else we record this FlagBits data for deferred use
             self.bitmask_flag_bits_flags[ group_name ] = group_elem
 
 
@@ -1026,7 +1026,7 @@ class DGenerator( OutputGenerator ):
         elif enum_str == '(~0ULL)':
             enum_str = '(~0UL)'
 
-        # enum extension name pointers must be explicitely typed to const( char )*
+        # enum extension name pointers must be explicitly typed to const( char )*
         # otherwise they are interpreted as d strings
         if name.endswith( '_NAME' ):
            self.appendSection( 'enum', 'enum const( char )* {0} = {1};'.format( name, enum_str ))
@@ -1084,7 +1084,7 @@ class DGenerator( OutputGenerator ):
         else:                       do_return = 'return '
 
 
-        # helper to catch and replace parameter names which are DLnag keywords (currently only version)
+        # helper to catch and replace parameter names which are DLang keywords (currently only version)
         def replaceKeyword( name ):
             if name == 'version': return 'Version'
             elif name == 'module' : return 'Module'
@@ -1116,7 +1116,7 @@ class DGenerator( OutputGenerator ):
 
 
         # construct loader for instance level functions
-        # vkGetDeviceProcAddr is an exception as it is an instance level function with para_0_type == 'VkDevvice'
+        # vkGetDeviceProcAddr is an exception as it is an instance level function with para_0_type == 'VkDevice'
         elif param_0_type in ( 'VkPhysicalDevice', 'VkInstance' ) or name == 'vkGetDeviceProcAddr':
             self.feature_content[ self.featureName ][ 'Load_I_Funcs' ].append(
                 ( '{0}{{LJUST_NAME}} = cast( PFN_{0}{{LJUST_NAME}} ) vkGetInstanceProcAddr( instance, "{0}" );'.format( name ), name_len ) )
@@ -1133,7 +1133,7 @@ class DGenerator( OutputGenerator ):
             # for convenience functions we remove the first parameter if it is a VkDevice or VkCommandBuffer
             # additionally we remove the const( VkAllocationCallbacks )* pAllocator parameter
             # arguments are just the parameter names without their types, they will be used with the vk... member functions
-            # VkDevice and VkAllocationCallbacks are both supplied by the DispatchDeveice
+            # VkDevice and VkAllocationCallbacks are both supplied by the DispatchDevice
             joined_args = ''
             if len( params[1:] ):
                 joined_args = ', ' + ', '.join( replaceKeyword( param.find( 'name' ).text ) for param in params[1:] )
