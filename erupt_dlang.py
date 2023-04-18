@@ -22,6 +22,7 @@ from templates.dlang.platform_extensions import *
 
 
 if len( sys.argv ) > 2 and not sys.argv[ 2 ].startswith( '--' ):
+    sys.path.append( sys.argv[ 1 ] + '/registry/' )
     sys.path.append( sys.argv[ 1 ] + '/scripts/' )
     sys.path.append( sys.argv[ 1 ] + '/xml/' )
 
@@ -964,14 +965,8 @@ class DGenerator( OutputGenerator ):
         elif enum_str == '(~0ULL)':
             enum_str = '(~0UL)'
 
-        # enum extension name pointers must be explicitely typed to const( char )*
-        # otherwise they are interpreted as d strings
-        if name.endswith( '_NAME' ):
-           self.appendSection( 'enum', 'enum const( char )* {0} = {1};'.format( name, enum_str ))
-           #self.tests_file_content +=  'enum const( char )* {0} = {1};'.format( name, enum_str ) + '\n'
-        else:
-            self.appendSection( 'enum', 'enum {0} = {1};'.format( name, enum_str ))
-            #self.tests_file_content +=  'enum {0} = {1};'.format( name, enum_str ) + '\n'
+        self.appendSection( 'enum', 'enum {0} = {1};'.format( name, enum_str ))
+        #self.tests_file_content += 'enum {0} = {1};'.format( name, enum_str ) + '\n'
 
 
     # functions
@@ -1106,11 +1101,15 @@ class DGeneratorOptions( GeneratorOptions ):
 if __name__ == '__main__':
     import argparse
 
-    vkxml = 'vk.xml'
+    vk_xml = 'vk.xml'
     parser = argparse.ArgumentParser()
     if len( sys.argv ) > 2 and not sys.argv[ 2 ].startswith( '--' ):
-        parser.add_argument( 'vulkandocs' )
-        vkxml = sys.argv[ 1 ] + '/xml/vk.xml'
+        if( sys.argv[ 1 ].endswith( 'Headers' )):
+            parser.add_argument( 'vulkanheaders' )
+            vk_xml = sys.argv[ 1 ] + '/registry/vk.xml'
+        else:
+            parser.add_argument( 'vulkandocs' )
+            vk_xml = sys.argv[ 1 ] + '/xml/vk.xml'
 
     # erupt-dlang options
     parser.add_argument( 'outputDirectory' )
@@ -1170,5 +1169,5 @@ if __name__ == '__main__':
     )
 
     reg = Registry( DGenerator(), options )
-    reg.loadElementTree( etree.parse( vkxml ))
+    reg.loadElementTree( etree.parse( vk_xml ))
     reg.apiGen()
