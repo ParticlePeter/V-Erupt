@@ -48,10 +48,9 @@ def printTree( self, elem ):
     ancestors = []
     depth = 0
     print_current = True
-
     self.tests_file_content += '\n'
-    while True:
 
+    while True:
         if print_current:   # print data of current
             indent = depth * '  '
             self.tests_file_content += indent + '------\n'
@@ -553,7 +552,7 @@ class DGenerator( OutputGenerator ):
         # scoped enums
         scoped_group = []
 
-        # bitfiled Flags alias
+        # bitfield Flags alias
         if not is_enum:
 
             enum_type = type_alias.attrib[ 'name' ]
@@ -615,14 +614,14 @@ class DGenerator( OutputGenerator ):
                 ( enum_val, enum_str ) = self.enumToValue( elem, True )
                 name = elem.get( 'name' )
 
-                # as of version 1.2.170 two bitmaks have a bitwidth of 64
+                # as of version 1.2.170 two bitmasks have a bitwidth of 64
                 # (VkPipelineStageFlagBits2KHR and VkAccessFlags2KHR) requiring special treatment
                 # we need to catch all enum bitfield values ending with ULL and remove the final L
                 # unfortunately this is true for the enum VK_SAMPLER_YCBCR_RANGE_ITU_FUL as well
                 # so we also check if the current enum group is an enum or a bitfield
                 #
                 # The ULL postfix of VkFlags64 have been removed from vk.xml in version 1.2.174,
-                # but unnecessarily added back by some douche in version 1.3.222.
+                # but unnecessarily added back in version 1.3.222.
                 # This time we keep the code handling, but remove the whole ULL instead of only the last L
                 if not is_enum and enum_str.endswith( 'ULL' ):
                     enum_str = enum_str[ : -3 ]
