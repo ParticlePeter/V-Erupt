@@ -1,4 +1,4 @@
-TYPES = """\
+VK_VIDEO = """\
 /**
  * Dlang vulkan type definitions
  *
@@ -6,9 +6,8 @@ TYPES = """\
  * License:   $(https://opensource.org/licenses/MIT, MIT License).
  * Authors: Copyright 2016 Alex Parrill, Peter Particle
  */
-module {PACKAGE_PREFIX}.types;
+module {PACKAGE_PREFIX}.vk_video;
 
-import {PACKAGE_PREFIX}.vk_video;
 import std.bitmanip : bitfields;
 
 nothrow @nogc:
@@ -22,23 +21,6 @@ alias int8_t    = byte;
 alias int16_t   = short;
 alias int32_t   = int;
 alias int64_t   = long;
-
-
-enum VK_NULL_HANDLE = null;
-
-enum VK_DEFINE_HANDLE( string name ) = "struct " ~ name ~ "_handle; alias " ~ name ~ " = " ~ name ~ "_handle*;";
-
-version( X86_64 ) {{
-    alias VK_DEFINE_NON_DISPATCHABLE_HANDLE( string name ) = VK_DEFINE_HANDLE!name;
-    enum VK_NULL_ND_HANDLE = null;
-}} else {{
-    enum VK_DEFINE_NON_DISPATCHABLE_HANDLE( string name ) = "alias " ~ name ~ " = ulong;";
-    enum VK_NULL_ND_HANDLE = 0uL;
-}}
-
-
-// Linkage of debug and allocation callbacks
-extern( System ):
 
 {TYPE_DEFINITIONS}\
 

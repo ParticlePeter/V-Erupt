@@ -9,11 +9,13 @@ import sys
 import re
 import os
 from os import path
-from itertools import islice
 from copy import deepcopy
+from textwrap import dedent
+from itertools import islice
 
 from templates.dlang.types import *
 from templates.dlang.package import *
+from templates.dlang.vk_video import *
 from templates.dlang.functions import *
 from templates.dlang.dispatch_device import *
 from templates.dlang.vulkan_lib_loader import *
@@ -39,6 +41,7 @@ except ImportError as e:
 
 # set this variable to True and then fill self.tests_file_content with debug data
 print_debug = False
+test_file = None
 
 
 # print contents of an elem (sub)tree to file, to examine its contenet
@@ -119,25 +122,6 @@ def getFullType( elem, self = None ):
         result += ( elem.find( 'name' ).tail or '' )
     else:               # enum array size
         result = '{0}[ {1} ]'.format( result, enum.text )
-
-    #if self and tail_str:
-    #    self.tests_file_content += '{0} : {1} : {2} : {0}{1}{2} : {3}\n'.format( elem_str.ljust( 6 ), type_str.ljust( 40 ), tail_str.ljust( 8 ), result )
-
-    # this code is here to compare between old (regex) way and new way to convert const types
-    # Converts C const syntax to D const syntax
-    #re_double_const = re.compile(r'^const\s+(.+)\*\s+const\*\s*$')
-    #reg_result  = elem_str + type_str + tail_str                    # put these out of function scope to increase build speed
-    #doubleConstMatch = re.match( re_double_const, reg_result )
-    #if doubleConstMatch:
-    #    reg_result = 'const( {0}* )*'.format( doubleConstMatch.group( 1 ))
-    #else:
-    #    re_single_const = re.compile(r'^const\s+(.+)\*\s*$')        # put these out of function scope to increase build speed
-    #    singleConstMatch = re.match( re_single_const, reg_result )
-    #    if singleConstMatch:
-    #        reg_result = 'const( {0} )*'.format( singleConstMatch.group( 1 ))
-    #if self and reg_result and result == reg_result:
-    #    self.tests_file_content += '{0} == {1}\n'.format( result.ljust( 50 ), reg_result )
-
     return result
 
 
@@ -148,7 +132,6 @@ class DGenerator( OutputGenerator ):
         super().__init__( errFile, warnFile, diagFile )
 
         self.indent = 4 * ' '
-        self.header_version = ''
 
         self.max_func_name_len = 0
         self.max_g_func_name_len = 0
@@ -176,10 +159,10 @@ class DGenerator( OutputGenerator ):
             pass
 
 
-        # open test file here, we might circumvent tests_file_content and write directly to the file
+        # store print debug in tests_file_content
         if print_debug:
             self.tests_file_content = ''
-            self.tests_file = open( 'test.txt', 'w', encoding = 'utf-8' )
+
 
 
         # since v1.1.70 we only get platform names per feature, but not their protect string
@@ -193,18 +176,16 @@ class DGenerator( OutputGenerator ):
     # end processing, store data to files
     def endFile( self ):
 
-        # -------------------- #
-        # write package.d file #
-        # -------------------- #
+        if self.genOpts.current_xml == 'vk':
+            types_file_name = 'types.d'
+            TYPES_OR_VIDEO = TYPES
+        else:
+            types_file_name = 'vk_video.d'
+            TYPES_OR_VIDEO = VK_VIDEO
 
-        with open( path.join( self.genOpts.directory, 'package.d' ), 'w', encoding = 'utf-8' ) as d_module:
-            write( PACKAGE_HEADER.format( PACKAGE_PREFIX = self.genOpts.packagePrefix ), file = d_module )
-
-
-
-        # ------------------ #
-        # write types.d file #
-        # ------------------ #
+        # --------------------------------- #
+        # write types.d and vk_viedo.d file #
+        # --------------------------------- #
 
         # helper function to join function sections into format substitutions
         def typesSection():
@@ -220,15 +201,30 @@ class DGenerator( OutputGenerator ):
             return result[:-1]
 
         # types file format string, substitute format tokens with accumulated section data
-        file_content = TYPES.format(
+        file_content = TYPES_OR_VIDEO.format(
             PACKAGE_PREFIX      = self.genOpts.packagePrefix,
-            HEADER_VERSION      = self.header_version,
             TYPE_DEFINITIONS    = typesSection(),
         )
 
-        with open( path.join( self.genOpts.directory, 'types.d' ), 'w', encoding = 'utf-8' ) as d_module:
+        with open( path.join( self.genOpts.directory, types_file_name ), 'w', encoding = 'utf-8' ) as d_module:
             write( file_content, file = d_module )
 
+
+        # vulkan-docs-v1.3.238 introduced a second xml file (video.xml)
+        # both xml files get parsed, the current file is stored in the generator options
+        # video.xml contains only type definitions, hence we can exit after types hevae been written out
+        # additional xml; files will probably need a more sofisticated approach
+        if self.genOpts.current_xml != 'vk':
+            if print_debug:
+                write( self.tests_file_content, file = tests_file )
+            return
+
+        # -------------------- #
+        # write package.d file #
+        # -------------------- #
+
+        with open( path.join( self.genOpts.directory, 'package.d' ), 'w', encoding = 'utf-8' ) as d_module:
+            write( PACKAGE_HEADER.format( PACKAGE_PREFIX = self.genOpts.packagePrefix ), file = d_module )
 
 
         # ----------------- #
@@ -358,11 +354,12 @@ class DGenerator( OutputGenerator ):
 
         # helper function to construct AliasSequnces of extension enums
         def platformProtectionAlias():
-            max_protect_len = len( max( self.platform_protection_order, key = lambda p: len( p )))
-            result = ''
-            for protection in self.platform_protection_order:
-                result += 'alias {0} = AliasSeq!( {1} );\n'.format( protection[3:].ljust( max_protect_len - 3 ), self.platform_extension_protection[ protection ] )
-            return result
+            if self.platform_protection_order:
+                max_protect_len = len( max( self.platform_protection_order, key = lambda p: len( p )))
+                result = ''
+                for protection in self.platform_protection_order:
+                    result += 'alias {0} = AliasSeq!( {1} );\n'.format( protection[3:].ljust( max_protect_len - 3 ), self.platform_extension_protection[ protection ] )
+                return result
 
 
         # helper function to populate a (else) static if block with corresponding code
@@ -438,8 +435,8 @@ class DGenerator( OutputGenerator ):
 
         # write and close remaining tests data into tests.txt file
         if print_debug:
-            write( self.tests_file_content, file = self.tests_file )
-            self.tests_file.close()
+            write( self.tests_file_content, file = tests_file )
+            #self.tests_file.close()
 
 
 
@@ -711,22 +708,85 @@ class DGenerator( OutputGenerator ):
         # c header and API version
         if category == 'define':
 
-            # printTree( self, elem )
+            #printTree( self, elem )
 
-            # extract header version: enum VK_HEADER_VERSION = 175;
-            # we prepend to the existing self.header_version, in case VK_HEADER_VERSION_COMPLETE was parsed already, which requires VK_HEADER_VERSION
+            # extract header version, e.g.: enum VK_HEADER_VERSION = 238;
             # the elem.text begins with a comment, which we would like to keep, followed by #define on the next line, which we get rid of
             if name == 'VK_HEADER_VERSION':
-                self.header_version = '{0} (corresponding c header)\nenum {1} ={2};\n{3}\n'.format( elem.text.splitlines()[0], name, elem[ 0 ].tail, self.header_version )
-                #printTree( self, elem )
+                self.appendSection( 'define', '\n{0} (corresponding c header)\nenum {1} ={2};\n'.format( elem.text.splitlines()[0], name, elem[ 0 ].tail ))
+
 
             # extract header version complete: enum VK_HEADER_VERSION_COMPLETE = VK_MAKE_API_VERSION( 0, 1, 2, VK_HEADER_VERSION )
-            # we append to the existing self.header_version, in case VK_HEADER_VERSION was parsed already, which is required by VK_HEADER_VERSION_COMPLETE
             # the elem.text begins with a comment, which we would like to keep, followed by #define on the next line, which we get rid of
             elif name == 'VK_HEADER_VERSION_COMPLETE':
                 type_child = elem.find( 'type' )
-                self.header_version += '{0} (corresponding c header)\nenum {1} = {2}( {3} );'.format( elem.text.splitlines()[0], name, type_child.text, type_child.tail[ 1 : -1 ] )
+                self.appendSection( 'define', '{0} (corresponding c header)\nenum {1} = {2}( {3} );'.format( elem.text.splitlines()[0], name, type_child.text, type_child.tail[ 1 : -1 ] ))
                 #printTree( self, elem )
+
+
+            elif name == 'VK_MAKE_API_VERSION':
+                name_child = elem.find( 'name' )
+                [ params, body ] = name_child.tail.split( ' \\' )
+                params = params[ 1 : -1 ].replace( 'v', 'uint v').replace( 'm', 'uint m' ).replace( 'p', 'uint p' )
+                body = body.strip().replace( '(uint32_t)', '' ).replace( '((variant))', 'variant' ).replace( '((major))', 'major' ).replace( '((minor))', 'minor' ).replace( '((patch))', 'patch' )[ 1 : -1 ]
+                body = body.replace( 'U', '' ).replace( '(', '( ' ).replace( ')', ' )' )
+                self.appendSection( 'define', dedent( '''\
+                    pure {{
+                    {0}uint {1}( {2} ) {{ return {3}; }}
+                    {0}uint VK_API_VERSION_VARIANT( uint ver ) {{ return ver >> 29; }}
+                    {0}uint VK_API_VERSION_MAJOR( uint ver ) {{ return ( ver >> 22 ) & 0x7F; }}
+                    {0}uint VK_API_VERSION_MINOR( uint ver ) {{ return ( ver >> 12 ) & 0x3FF; }}
+                    {0}uint VK_API_VERSION_PATCH( uint ver ) {{ return ver & 0xFFF; }}
+                    }}
+                ''' ).format( self.indent, name, params, body ))
+
+
+            elif name == 'VK_MAKE_VERSION':     # deprecated
+                name_child = elem.find( 'name' )
+                [ params, body ] = name_child.tail.split( ' \\' )
+                params = params[ 1 : -1 ].replace( 'm', 'uint m' ).replace( 'p', 'uint p' )
+                body = body.strip().replace( '(uint32_t)', '' ).replace( '((major))', 'major' ).replace( '((minor))', 'minor' ).replace( '((patch))', 'patch' )[ 1 : -1 ]
+                body = body.replace( 'U', '' ).replace( '(', '( ' ).replace( ')', ' )' )
+                self.appendSection( 'define', dedent( '''
+                    {4}
+                    deprecated( "These defines have been deprecated, use VK_MAKE_API_VERSION and VK_API_VERSION_ variants instead!" ) {{
+                    {0}pure {{
+                    {0}{0}uint {1}( {2} ) {{ return {3}; }}
+                    {0}{0}uint VK_VERSION_MAJOR( uint ver ) {{ return ver >> 22; }}
+                    {0}{0}uint VK_VERSION_MINOR( uint ver ) {{ return ( ver >> 12 ) & 0x3FF; }}
+                    {0}{0}uint VK_VERSION_PATCH( uint ver ) {{ return ver & 0xFFF; }}
+                    {0}}}
+                    }}
+                ''' ).format( self.indent, name, params, body, elem.text.splitlines()[0] )) # splitlines()[0] gets rid of #define on second line
+
+
+            elif name == 'VK_MAKE_VIDEO_STD_VERSION':
+                name_child = elem.find( 'name' )
+                [ params, body ] = name_child.tail.split( ' \\' )
+                params = params[ 1 : -1 ].replace( 'm', 'uint m' ).replace( 'p', 'uint p' )
+                body = body.strip().replace( '(uint32_t)', '' ).replace( '((major))', 'major' ).replace( '((minor))', 'minor' ).replace( '((patch))', 'patch' )[ 1 : -1 ]
+                body = body.replace( '(', '( ' ).replace( ')', ' )' )
+                self.appendSection( 'define', 'pure uint {0}( {1} ) {{ return {2}; }}'.format( name, params, body ))
+
+
+            elif name.startswith( 'VK_API_VERSION_1' ) or name.startswith( 'VK_STD_VULKAN_VIDEO_CODEC_' ):
+                comment = elem.text.splitlines()[0]     # gets rid of #define on second line of elem.text
+                if comment:
+                    self.appendSection( 'define', comment )
+                type_child = elem.find( 'type' )
+                type_child_tail = type_child.tail.split( '//' )
+                if len( type_child_tail ) == 2:
+                    type_child_tail = '( {0} );\t//{1}'.format( type_child_tail[0][ 1 : -1 ], type_child_tail[1] )
+                else:
+                    type_child_tail = '( {0} );'.format( type_child_tail[0][ 1 : -1 ] )
+                self.appendSection( 'define', 'enum {0} = {1}{2}'.format( elem.find( 'name' ).text, type_child.text, type_child_tail ))
+
+
+            else:
+                #printTree( self, elem )
+                pass
+
+
 
         # alias VkFlags = uint32_t;
         elif category == 'basetype':
@@ -865,6 +925,7 @@ class DGenerator( OutputGenerator ):
             member_type_bitcount = member_type.split(':')
 
             if len( member_type_bitcount ) == 2:    # bitfields
+                # printTree( self, elem )
                 member_bitfield.append( ( member_type_bitcount[ 0 ] + ',', '"{0}",'.format( member_name ), member_type_bitcount[ 1 ] ) )
                 member_type_length = max( member_type_length, len( member_type ) + len( self.indent ))
                 member_name_length = max( member_name_length, len( member_name ) + 4 )
@@ -965,8 +1026,14 @@ class DGenerator( OutputGenerator ):
         elif enum_str == '(~0ULL)':
             enum_str = '(~0UL)'
 
-        self.appendSection( 'enum', 'enum {0} = {1};'.format( name, enum_str ))
-        #self.tests_file_content += 'enum {0} = {1};'.format( name, enum_str ) + '\n'
+        # enum extension name pointers must be explicitely typed to const( char )*
+        # otherwise they are interpreted as d strings
+        if name.endswith( '_NAME' ):
+           self.appendSection( 'enum', 'enum const( char )* {0} = {1};'.format( name, enum_str ))
+           #self.tests_file_content +=  'enum const( char )* {0} = {1};'.format( name, enum_str ) + '\n'
+        else:
+            self.appendSection( 'enum', 'enum {0} = {1};'.format( name, enum_str ))
+            #self.tests_file_content +=  'enum {0} = {1};'.format( name, enum_str ) + '\n'
 
 
     # functions
@@ -1094,6 +1161,7 @@ class DGeneratorOptions( GeneratorOptions ):
         self.namePrefix         = kwargs.pop( 'namePrefix' )
         self.genFuncPointers    = kwargs.pop( 'genFuncPointers' )
         self.indentString       = kwargs.pop( 'indentString' )
+        self.current_xml        = ''
         super().__init__( *args, **kwargs )
 
 
@@ -1102,14 +1170,17 @@ if __name__ == '__main__':
     import argparse
 
     vk_xml = 'vk.xml'
+    video_xml = 'video.xml'
     parser = argparse.ArgumentParser()
     if len( sys.argv ) > 2 and not sys.argv[ 2 ].startswith( '--' ):
         if( sys.argv[ 1 ].endswith( 'Headers' )):
             parser.add_argument( 'vulkanheaders' )
             vk_xml = sys.argv[ 1 ] + '/registry/vk.xml'
+            video_xml = sys.argv[ 1 ] + '/registry/video.xml'
         else:
             parser.add_argument( 'vulkandocs' )
             vk_xml = sys.argv[ 1 ] + '/xml/vk.xml'
+            video_xml = sys.argv[ 1 ] + '/xml/video.xml'
 
     # erupt-dlang options
     parser.add_argument( 'outputDirectory' )
@@ -1168,6 +1239,19 @@ if __name__ == '__main__':
         #alignFuncParam    = 48)
     )
 
+    if print_debug:
+        tests_file = open( os.path.join( os.path.dirname( os.path.realpath( __file__ )), 'test.txt' ), 'w', encoding = 'utf-8' )
+        #tests_file = open( 'test.txt', 'w', encoding = 'utf-8' )
+
+    options.current_xml = 'vk'
     reg = Registry( DGenerator(), options )
     reg.loadElementTree( etree.parse( vk_xml ))
     reg.apiGen()
+
+    options.current_xml = 'video'
+    reg = Registry( DGenerator(), options )
+    reg.loadElementTree( etree.parse( video_xml ))
+    reg.apiGen()
+
+    if print_debug:
+        tests_file.close()
